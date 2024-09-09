@@ -2,3 +2,4 @@
 /lib/libselc.a
 /include/pgenc
 /include/selc
+/bin/pgenc

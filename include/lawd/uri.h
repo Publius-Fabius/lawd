@@ -18,6 +18,14 @@
  * 
  * scheme = ALPHA *( ALPHA | DIGIT | "+" | "-" | "." )
  * 
+ * dec-octet     = DIGIT                 ; 0-9
+ *               | %x31-39 DIGIT         ; 10-99
+ *               | "1" 2DIGIT            ; 100-199
+ *               | "2" %x30-34 DIGIT     ; 200-249
+ *               | "25" %x30-35          ; 250-255
+ * 
+ * IPv4address   = dec-octet "." dec-octet "." dec-octet "." dec-octet
+ * 
  * h16         = 1*4HEXDIG
  *             ; 16 bits of address represented in hexadecimal
  * 
@@ -37,6 +45,8 @@
  * IP_literal = "[" ( IPv6address | IPvFuture  ) "]"
  *
  * IPvFuture = "v" 1*HEXDIG "." 1*( unreserved | sub-delims | ":" )
+ * 
+ * pct-encoded = "%" HEXDIG HEXDIG
  * 
  * reg_name = *( unreserved | pct_encoded | sub_delims )
  * 
@@ -98,6 +108,8 @@
 #define LAWD_URI_H
 
 #include "pgenc/parser.h"
+#include "pgenc/stack.h"
+#include "lawd/error.h"
 #include <stddef.h>
 
 /** URI Path */
@@ -232,13 +244,37 @@ sel_err_t law_uri_parse(
         struct pgc_stk *heap,
         struct law_uri *uri);
 
+enum pgc_err law_uri_capscheme(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+
 /** URI Parser Collection */
 struct law_uri_parsers;
 
 /** Get the static URI parser collection. */
 struct law_uri_parsers *export_law_uri_parsers();
 
+struct pgc_par *law_uri_parsers_sub_delims(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_gen_delims(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_reserved(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_unreserved(struct law_uri_parsers *pars);
+
 struct pgc_par *law_uri_parsers_scheme(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_dec_octet(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_IPv4address(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_IPv6address(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_pct_encoded(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_reg_name(struct law_uri_parsers *pars);
 
 struct pgc_par *law_uri_parsers_host(struct law_uri_parsers *pars);
 

@@ -71,6 +71,20 @@ bin/test_util : tests/lawd/util.c \
 grind_test_util : bin/test_util
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
+# uri.h 
+tmp/lawd/uri_parsers.c : grammar/uri.g 
+	bin/pgenc -g $< -s $@ -d law_uri_parsers
+build/lawd/uri.o : source/lawd/uri.c 
+	$(CC) $(CFLAGS) -c -o $@ $<
+build/lawd/uri_parsers.o : tmp/lawd/uri_parsers.c 
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_uri : tests/lawd/uri.c \
+	build/lawd/uri_parsers.o \
+	build/lawd/uri.o \
+	lib/libselc.a \
+	lib/libpgenc.a 
+	$(CC) $(CFLAGS) -o $@ $^
+
 # test suite
 suite: \
 	grind_test_error \
@@ -81,4 +95,6 @@ suite: \
 
 clean:
 	rm build/lawd/*.o || true
-	rm bin/test* || true 
+	rm bin/test_* || true 
+	rm tmp/lawd/uri_parsers.c || true 
+
