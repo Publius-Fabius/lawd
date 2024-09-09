@@ -5,7 +5,54 @@
 #include "lawd/uri.h"
 
 /**
- *  RFC7230 - Hypertext Transfer Protocol (HTTP/1.1): Message Syntax and Routing
+ *                                 RFC7230 
+ *    Hypertext Transfer Protocol (HTTP/1.1): Message Syntax and Routing
+ * 
+ * tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*"
+ *       / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
+ *       / DIGIT / ALPHA
+ * 
+ * token = 1*tchar
+ * 
+ * method = token
+ * 
+ * origin_form = absolute_path [ "?" query ]
+ * absolute_form = absolute_URI
+ * authority_form = authority
+ * asterisk_form = "*"
+ * 
+ * request_target = origin_form
+ *                | absolute_form
+ *                | authority_form
+ *                | asterisk_form
+ * 
+ * HTTP_name = "HTTP" ; HTTP
+ * HTTP_version = HTTP_name "/" DIGIT "." DIGIT
+ *
+ * start_line = method SP request_target SP HTTP_version CRLF
+ * 
+ * field_name = token
+ * 
+ * VCHAR = "any visible USASCII character"
+ * 
+ * SP = ' '
+ * 
+ * HTAB = '\t' 
+ * 
+ * OWS = *( SP / HTAB )
+ * 
+ * field_vchar = VCHAR
+ * 
+ * field_content  = field_vchar [ 1*( SP | HTAB ) field_vchar ]
+ * 
+ * field_value = *( field_content )
+ * 
+ * header_field = field_name ":" OWS field_value OWS
+ * 
+ * HTTP_message = start_line
+ *              *( header_field CRLF )
+ *              CRLF
+ *              [ message_body ]
  */
 
 /** HTTP Method */
@@ -87,5 +134,40 @@ sel_err_t law_http_accept(
         struct law_srv *server,
         int socket,
         void *state);
+
+/** HTTP Parser Dictionary */
+struct law_http_parsers;
+
+/** Link */
+void link_http_parsers();
+
+/** Export HTTP Parsers */
+struct law_http_parsers *export_law_http_parsers();
+
+struct pgc_par *law_http_parsers_tchar(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_token(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_method(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_path_absolute(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_absolute_URI(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_authority(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_query(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_origin_form(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_absolute_form(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_authority_form(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_asterisk_form(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_field_value(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_header_field(struct law_http_parsers *x);
 
 #endif

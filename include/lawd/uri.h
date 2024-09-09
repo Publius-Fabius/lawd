@@ -102,6 +102,9 @@
  * URI_reference = URI | relative_ref
  * 
  * absolute_URI = scheme ":" hier_part [ "?" query ]
+
+ * 
+ *
  */
 
 #ifndef LAWD_URI_H
@@ -128,8 +131,9 @@ struct law_uri_query_iter;
 struct law_uri {
         char *scheme;
         char *host;
-        struct law_uri_path *path;
-        struct law_uri_query *query;
+        char *port;
+        char *path;
+        char *query;
         char *fragment;
 };
 
@@ -242,13 +246,25 @@ void law_uri_query_stop(
 sel_err_t law_uri_parse(
         struct pgc_buf *buffer,
         struct pgc_stk *heap,
-        struct law_uri *uri);
+        struct law_uri **uri);
 
+/** Parse the URI query string. */
+sel_err_t law_uri_parse_query(
+        const char *query_string,
+        struct pgc_stk *heap,
+        struct law_uri_query **query);
+
+/** Parse the URI path string. */
+sel_err_t law_uri_parse_path(
+        const char *path_string,
+        struct pgc_stk *heap,
+        struct law_uri_path **path);
+
+/** Capture scheme component. */
 enum pgc_err law_uri_capscheme(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
-
 
 /** URI Parser Collection */
 struct law_uri_parsers;
@@ -282,10 +298,16 @@ struct pgc_par *law_uri_parsers_port(struct law_uri_parsers *pars);
 
 struct pgc_par *law_uri_parsers_authority(struct law_uri_parsers *pars);
 
+struct pgc_par *law_uri_parsers_path_absolute(struct law_uri_parsers *pars);
+
 struct pgc_par *law_uri_parsers_path(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_query(struct law_uri_parsers *pars);
 
 struct pgc_par *law_uri_parsers_URI(struct law_uri_parsers *pars);
 
 struct pgc_par *law_uri_parsers_URI_reference(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_absolute_URI(struct law_uri_parsers *pars);
 
 #endif

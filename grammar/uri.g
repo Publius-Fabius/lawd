@@ -222,4 +222,14 @@ let relative_ref = relative_part 0_1(QMARK query) 0_1(HASH fragment);
 
 let URI_reference = URI | relative_ref;
 
-let absolute_uri = scheme COLON hier_part 0_1(QMARK query);
+let absolute_URI = scheme COLON hier_part 0_1(QMARK query);
+
+# request_target = origin_form
+#                 | absolute_form
+#                 | authority_form
+#                 | asterisk_form
+
+let request_target = origin_form
+                   | absolute_form
+                   | authority_form
+                   | asterisk_form;

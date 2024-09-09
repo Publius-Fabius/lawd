@@ -85,6 +85,12 @@ bin/test_uri : tests/lawd/uri.c \
 	lib/libpgenc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 
+# http.h
+tmp/lawd/http_parsers.c : grammar/http.g 
+	bin/pgenc -g $< -s $@ -d law_http_parsers
+build/lawd/http_parsers.o : tmp/lawd/http_parsers.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 # test suite
 suite: \
 	grind_test_error \
@@ -97,4 +103,5 @@ clean:
 	rm build/lawd/*.o || true
 	rm bin/test_* || true 
 	rm tmp/lawd/uri_parsers.c || true 
+	rm tmp/lawd/http_parsers.c || true
 

@@ -1,4 +1,5 @@
 
+#include "lawd/uri.h"
 #include "lawd/http.h"
 #include "lawd/safemem.h"
 #include "pgenc/buffer.h"
@@ -95,6 +96,32 @@ sel_err_t law_http_accept(
 
         return error;
 }       
+
+void link_http_parsers()
+{
+        /* dec path_absolute;
+           dec absolute_URI;
+           dec authority;
+           dec query; */
+
+        struct law_uri_parsers *urips = export_law_uri_parsers();
+        struct law_http_parsers *https = export_law_http_parsers();
+
+        struct pgc_par *path_abs = law_uri_parsers_path_absolute(urips);
+        struct pgc_par *abs_URI = law_uri_parsers_absolute_URI(urips);
+        struct pgc_par *auth = law_uri_parsers_authority(urips);
+        struct pgc_par *query = law_uri_parsers_query(urips);
+
+        struct pgc_par *path_abs_l = law_http_parsers_path_absolute(https);
+        struct pgc_par *abs_URI_l = law_http_parsers_absolute_URI(https);
+        struct pgc_par *auth_l = law_http_parsers_authority(https);
+        struct pgc_par *query_l = law_http_parsers_query(https);
+
+        path_abs_l->u.lnk = path_abs;
+        abs_URI_l->u.lnk = abs_URI;
+        auth_l->u.lnk = auth;
+        query_l->u.lnk = query;
+}
 
 // struct law_http {
 //         int socket;                     /** Server Socket */
