@@ -22,7 +22,6 @@ set unreserved = ALPHA + DIGIT + '-' + '.' + '_' + '~';
 # scheme = ALPHA *( ALPHA | DIGIT | "+" | "-" | "." )
 set schemec = ALPHA + DIGIT + '+' + '-' + '.';
 let scheme = ALPHA 0_64(schemec);
-let capscheme = law_uri_capscheme $ scheme;
 
 # dec-octet     = DIGIT                 ; 0-9
 #               | %x31-39 DIGIT         ; 10-99
@@ -147,11 +146,7 @@ let authority = host 0_1(COLON port);
 # 
 # segment = *pchar
 
-let AT = '@';
-
-let pchar = unreserved | pct_encoded | sub_delims | COLON | AT;
-
-let segment_nz_nc = 1_127(unreserved | pct_encoded | sub_delims | AT);
+let pchar = unreserved | pct_encoded | sub_delims | COLON | '@';
 
 let segment_nz = 1_127(pchar);
 
@@ -169,8 +164,6 @@ let segment = 0_127(pchar);
 
 let FSLASH = '/';
 
-let path_noscheme = segment_nz_nc 0_127(FSLASH segment);
-
 let path_abempty = 0_127(FSLASH segment);
 
 let path_absolute = FSLASH 0_1(segment_nz 0_127(FSLASH segment));
@@ -185,10 +178,6 @@ let path_empty = 0_0(pchar);
 #             | path_empty
 #
 # query = *( pchar | "/" | "?" )
-#
-# fragment = *( pchar | "/" | "?" )
-#
-# URI = scheme ":" hier_part [ "?" query ] [ "#" fragment ]
 
 let hier_part = (FSLASH FSLASH authority path_abempty)
               | path_absolute 
@@ -196,40 +185,30 @@ let hier_part = (FSLASH FSLASH authority path_abempty)
               | path_empty;
 
 let QMARK = '?';
-let HASH = '#';
+
 let query = 0_127(pchar | FSLASH | QMARK);
-let fragment = 0_127(pchar | FSLASH | QMARK);
-
-let URI = scheme COLON hier_part 0_1(QMARK query) 0_1(HASH fragment);
-
-# relative_part = "//" authority path_abempty
-#                   | path_absolute
-#                   | path_noscheme
-#                   | path_empty
-
-let relative_part = (FSLASH FSLASH authority path_abempty)
-                  | path_absolute
-                  | path_noscheme 
-                  | path_empty;
-
-# relative_ref  = relative_part [ "?" query ] [ "#" fragment ]
-#
-# URI_reference = URI | relative_ref
-#
-# absolute_URI = scheme ":" hier_part [ "?" query ]
-
-let relative_ref = relative_part 0_1(QMARK query) 0_1(HASH fragment);
-
-let URI_reference = URI | relative_ref;
 
 let absolute_URI = scheme COLON hier_part 0_1(QMARK query);
 
-# request_target = origin_form
-#                 | absolute_form
-#                 | authority_form
-#                 | asterisk_form
+# origin_form = absolute_path [ "?" query ]
 
-let request_target = origin_form
-                   | absolute_form
-                   | authority_form
-                   | asterisk_form;
+let origin_URI = path_absolute 0_1(QMARK query);
+
+# captures
+
+let cap_authority = 
+        (law_uri_cap_host $ host) 0_1(COLON (law_uri_cap_port $ port));
+
+let cap_query = 0_1(QMARK (law_uri_cap_query $ query));
+
+let cap_heirpart = 
+          (FSLASH FSLASH cap_authority (law_uri_cap_path $ path_abempty))
+        | (law_uri_cap_path $ path_absolute)
+        | (law_uri_cap_path $ path_rootless)
+        | (law_uri_cap_path $ path_empty);
+
+let cap_absolute_URI = 
+        (law_uri_cap_scheme $ scheme) COLON cap_heirpart cap_query;
+
+let cap_origin_URI = (law_uri_cap_path $ path_absolute) cap_query;
+

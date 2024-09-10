@@ -1,5 +1,7 @@
 
 #include "lawd/uri.h"
+#include "pgenc/lang.h"
+#include <string.h>
 
 void test_sub_delims()
 {
@@ -293,6 +295,133 @@ void test_authority()
         // SEL_ASSERT(pgc_par_runs(authority, "", NULL) == 0);
 }
 
+enum pgc_err test_lang_parse(
+        struct pgc_par *parser, 
+        char *text,
+        struct pgc_ast_lst **result)
+{
+        static char bytes[0x2000];
+        struct pgc_stk stk;
+        pgc_stk_init(&stk, 0x2000, bytes);
+
+        struct pgc_buf buf;
+        size_t text_len = strlen(text);
+        pgc_buf_init(&buf, text, text_len, text_len);
+        
+        return pgc_lang_parse(parser, &buf, &stk, result);
+}
+
+void test_cap_authority()
+{
+        SEL_INFO();
+
+        struct pgc_par *auth = law_uri_parsers_cap_authority(
+                export_law_uri_parsers());
+
+        struct pgc_ast_lst *result;
+        struct pgc_ast *value;
+
+        SEL_ASSERT(test_lang_parse(auth, "abc:21", &result) == PGC_ERR_OK);
+        SEL_ASSERT(pgc_ast_len(result) == 2);
+        value = result->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_HOST);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "abc"));
+        value = pgc_ast_at(result, 1)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_PORT);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "21"));
+}
+
+void test_cap_absolute_URI()
+{
+        SEL_INFO();
+
+        struct pgc_par *uri = law_uri_parsers_cap_absolute_URI(
+                export_law_uri_parsers());
+
+        struct pgc_ast_lst *result;
+        struct pgc_ast *value;
+
+        SEL_ASSERT(test_lang_parse(uri, 
+                "http://hello.com:80/my/path?query", 
+                &result) == PGC_ERR_OK);
+
+        SEL_ASSERT(pgc_ast_len(result) == 5);
+        value = pgc_ast_at(result, 0)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_SCHEME);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "http"));
+        value = pgc_ast_at(result, 1)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_HOST);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "hello.com"));
+        value = pgc_ast_at(result, 2)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_PORT);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "80"));
+        value = pgc_ast_at(result, 3)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_PATH);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "/my/path"));
+        value = pgc_ast_at(result, 4)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_QUERY);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "query"));
+}
+
+void test_cap_origin_URI()
+{
+        SEL_INFO();
+
+        struct pgc_par *uri = law_uri_parsers_cap_origin_URI(
+                export_law_uri_parsers());
+
+        struct pgc_ast_lst *result;
+        struct pgc_ast *value;
+
+        SEL_ASSERT(test_lang_parse(uri, 
+                "/my/path?query", 
+                &result) == PGC_ERR_OK);
+
+        SEL_ASSERT(pgc_ast_len(result) == 2);
+        value = pgc_ast_at(result, 0)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_PATH);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "/my/path"));
+        value = pgc_ast_at(result, 1)->val;
+        SEL_ASSERT(pgc_syn_typeof(value) == LAW_URI_QUERY);
+        SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "query"));
+}
+
+enum pgc_err test_uri_parses(
+        struct pgc_par *parser, 
+        char *text,
+        struct law_uri *uri)
+{
+        static char bytes[0x2000];
+        struct pgc_stk stk;
+        pgc_stk_init(&stk, 0x2000, bytes);
+
+        struct pgc_buf buf;
+        size_t text_len = strlen(text);
+        pgc_buf_init(&buf, text, text_len, text_len);
+        
+        return law_uri_parse(parser, &buf, &stk, uri);
+}
+
+void test_uri_parse()
+{
+        SEL_INFO();
+
+        struct pgc_par *uri = law_uri_parsers_cap_absolute_URI(
+                export_law_uri_parsers());
+
+        struct law_uri result;
+
+        SEL_ASSERT(test_uri_parses(uri, 
+                "http://hello.com:80/my/path?query", 
+                &result) == PGC_ERR_OK);
+
+        SEL_ASSERT(!strcmp(result.scheme, "http"));
+        SEL_ASSERT(!strcmp(result.host, "hello.com"));
+        SEL_ASSERT(!strcmp(result.port, "80"));
+        SEL_ASSERT(!strcmp(result.path, "/my/path"));
+        SEL_ASSERT(!strcmp(result.query, "query"));
+}
+
 int main(int argc, char ** args)
 {
         SEL_INFO();
@@ -306,4 +435,8 @@ int main(int argc, char ** args)
         test_IPv6address();
         test_reg_name();
         test_authority();
+        test_cap_authority();
+        test_cap_absolute_URI();
+        test_cap_origin_URI();
+        test_uri_parse();
 }

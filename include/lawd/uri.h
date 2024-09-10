@@ -102,7 +102,6 @@
  * URI_reference = URI | relative_ref
  * 
  * absolute_URI = scheme ":" hier_part [ "?" query ]
-
  * 
  *
  */
@@ -114,6 +113,14 @@
 #include "pgenc/stack.h"
 #include "lawd/error.h"
 #include <stddef.h>
+
+enum law_uri_part {
+        LAW_URI_SCHEME,
+        LAW_URI_HOST,
+        LAW_URI_PORT,
+        LAW_URI_PATH,
+        LAW_URI_QUERY
+};
 
 /** URI Path */
 struct law_uri_path;
@@ -134,7 +141,6 @@ struct law_uri {
         char *port;
         char *path;
         char *query;
-        char *fragment;
 };
 
 /** 
@@ -244,9 +250,10 @@ void law_uri_query_stop(
  * Parse the URI starting at the buffer's current offset.
  */
 sel_err_t law_uri_parse(
+        struct pgc_par *parser,
         struct pgc_buf *buffer,
         struct pgc_stk *heap,
-        struct law_uri **uri);
+        struct law_uri *uri);
 
 /** Parse the URI query string. */
 sel_err_t law_uri_parse_query(
@@ -261,7 +268,25 @@ sel_err_t law_uri_parse_path(
         struct law_uri_path **path);
 
 /** Capture scheme component. */
-enum pgc_err law_uri_capscheme(
+enum pgc_err law_uri_cap_scheme(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+/** Capture host component. */
+enum pgc_err law_uri_cap_host(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+/** Capture port component. */
+enum pgc_err law_uri_cap_port(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+/** Capture path component. */
+enum pgc_err law_uri_cap_path(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
@@ -309,5 +334,11 @@ struct pgc_par *law_uri_parsers_URI(struct law_uri_parsers *pars);
 struct pgc_par *law_uri_parsers_URI_reference(struct law_uri_parsers *pars);
 
 struct pgc_par *law_uri_parsers_absolute_URI(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_cap_authority(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_cap_origin_URI(struct law_uri_parsers *pars);
+
+struct pgc_par *law_uri_parsers_cap_absolute_URI(struct law_uri_parsers *pars);
 
 #endif
