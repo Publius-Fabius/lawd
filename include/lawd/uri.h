@@ -115,11 +115,14 @@
 #include <stddef.h>
 
 enum law_uri_part {
-        LAW_URI_SCHEME,
-        LAW_URI_HOST,
-        LAW_URI_PORT,
-        LAW_URI_PATH,
-        LAW_URI_QUERY
+        LAW_URI_SCHEME,                 /** URI Scheme */
+        LAW_URI_HOST,                   /** URI Host */
+        LAW_URI_PORT,                   /** URI Port */
+        LAW_URI_PATH,                   /** URI Path */
+        LAW_URI_QUERY,                  /** URI Query */
+        LAW_URI_TOKEN,                  /** Query Token */
+        LAW_URI_ELEM,                   /** Query Element */
+        LAW_URI_SEG                     /** Path Segment */
 };
 
 /** URI Path */
@@ -134,7 +137,7 @@ struct law_uri_query;
 /** Query Iterator */
 struct law_uri_query_iter;
 
-/** (U)niform (R)esource (I)dentifier */
+/** Uniform Resource Identifier */
 struct law_uri {
         char *scheme;
         char *host;
@@ -158,44 +161,23 @@ const char *law_uri_path_at(
         const ssize_t index);
 
 /**
- * A callback for iterating through a path's segments.
+ * Get an iterator for the path's elements.
  */
-typedef sel_err_t (*law_uri_path_callback_t)(
-        const char *segment,
-        void *user_state);
-
-/**
- * Iterate efficiently through the path's segments.
- */
-sel_err_t law_uri_path_foreach(
-        struct law_uri_path *path,
-        law_uri_path_callback_t callback,
-        void *user_state);
-
-/**
- * Get an iterator for the path's segments.
- */
-struct law_uri_path_iter *law_uri_path_segments(
+struct law_uri_path_iter *law_uri_path_segs(
         struct law_uri_path *path);
 
 /**
- * Advance the iterator.
+ * Finish an incomplete iteration.
  */
-int law_uri_path_next(
-        struct law_uri_path_iter *iter,
-        const char **value);
+void law_uri_path_finish(
+        struct law_uri_path_iter *path);
 
 /**
- * End the iteration early, freeing the iterator's memory.
+ * Increment the path iterator.
  */
-void law_uri_path_stop(
-        struct law_uri_path_iter *iter);
-
-/**
- * Resolve path by removing dot segments.
- */
-struct law_uri_path *law_uri_path_remove_dot_segs(
-        struct law_uri_path *path);
+struct law_uri_path_iter *law_uri_path_next(
+        struct law_uri_path_iter *path,
+        const char **segment);
 
 /**
  * Get the number of query elements in the collection.
@@ -211,40 +193,24 @@ const char *law_uri_query_lookup(
         char *name);
 
 /**
- * Callback type for iterating through URI queries.
+ * Get an iterator for the query's elements.
  */
-typedef sel_err_t (*law_uri_query_callback_t)(
-        const char *name,
-        const char *value,
-        void *user_state);
-
-/** 
- * Iterate through the URI query. 
- */
-sel_err_t law_uri_query_foreach(
-        struct law_uri_query *query,
-        law_uri_query_callback_t callback,
-        void *user_state);
-
-/**
- * Get an iterator for the query's pairs.
- */
-struct law_uri_query_iter *law_uri_query_pairs(
+struct law_uri_query_iter *law_uri_query_elems(
         struct law_uri_query *query);
 
 /**
- * Get the next <name, value> query pair.
+ * Finish an incomplete iteration.
  */
-int law_uri_query_next(
-        struct law_uri_query_iter *iter,
-        const char **name,
-        const char **value);
+void law_uri_query_finish(
+        struct law_uri_query_iter *query);
 
 /**
- * Stop the iteration early, freeing any memory.
+ * Increment the query iterator.
  */
-void law_uri_query_stop(
-        struct law_uri_query_iter *iter);
+struct law_uri_query_iter *law_uri_query_next(
+        struct law_uri_query_iter *query,
+        const char **name,
+        const char **value);
 
 /**
  * Parse the URI starting at the buffer's current offset.
@@ -257,13 +223,13 @@ sel_err_t law_uri_parse(
 
 /** Parse the URI query string. */
 sel_err_t law_uri_parse_query(
-        const char *query_string,
+        char *query_string,
         struct pgc_stk *heap,
         struct law_uri_query **query);
 
 /** Parse the URI path string. */
 sel_err_t law_uri_parse_path(
-        const char *path_string,
+        char *path_string,
         struct pgc_stk *heap,
         struct law_uri_path **path);
 
@@ -287,6 +253,18 @@ enum pgc_err law_uri_cap_port(
 
 /** Capture path component. */
 enum pgc_err law_uri_cap_path(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+/** Capture query token. */
+enum pgc_err law_uri_cap_token(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+/** Capture query element. */
+enum pgc_err law_uri_cap_elem(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);

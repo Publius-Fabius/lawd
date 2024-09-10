@@ -422,6 +422,86 @@ void test_uri_parse()
         SEL_ASSERT(!strcmp(result.query, "query"));
 }
 
+void test_parse_query()
+{
+        SEL_INFO();
+
+        static char bytes[0x1000];
+        struct pgc_stk heap;
+        pgc_stk_init(&heap, 0x1000, bytes);
+
+        struct law_uri_query *query;
+
+        SEL_ASSERT(law_uri_parse_query(
+                "a=1&b=2&c=3&d=",
+                &heap,
+                &query) == SEL_ERR_OK);
+        SEL_ASSERT(law_uri_query_count(query) == 4);
+        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "a"), "1"));
+        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "b"), "2"));
+        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "c"), "3"));
+        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "d"), ""));
+        SEL_ASSERT(law_uri_query_lookup(query, "e") == NULL);
+
+        struct law_uri_query_iter *iter = law_uri_query_elems(query);
+        SEL_ASSERT(iter);
+        
+        const char *name;
+        const char *value;
+
+        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(!strcmp(name, "a"));
+        SEL_ASSERT(!strcmp(value, "1"));
+
+        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(!strcmp(name, "b"));
+        SEL_ASSERT(!strcmp(value, "2"));
+
+        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(!strcmp(name, "c"));
+        SEL_ASSERT(!strcmp(value, "3"));
+
+        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(!strcmp(name, "d"));
+        SEL_ASSERT(!strcmp(value, ""));
+
+        SEL_ASSERT(!law_uri_query_next(iter, &name, &value));
+}
+
+void test_parse_path()
+{
+        SEL_INFO();
+
+        static char bytes[0x1000];
+        struct pgc_stk heap;
+        pgc_stk_init(&heap, 0x1000, bytes);
+
+        struct law_uri_path *path;
+
+        SEL_ASSERT(law_uri_parse_path(
+                "//abc/def/g",
+                &heap,
+                &path) == SEL_ERR_OK);
+        SEL_ASSERT(law_uri_path_count(path) == 3);
+        SEL_ASSERT(!strcmp(law_uri_path_at(path, 0), "abc"));
+        SEL_ASSERT(!strcmp(law_uri_path_at(path, 1), "def"));
+        SEL_ASSERT(!strcmp(law_uri_path_at(path, 2), "g"));
+        SEL_ASSERT(!strcmp(law_uri_path_at(path, -1), "g"));
+        SEL_ASSERT(!strcmp(law_uri_path_at(path, -2), "def"));
+        SEL_ASSERT(!strcmp(law_uri_path_at(path, -3), "abc"));
+
+        const char *segment;
+        struct law_uri_path_iter *iter = law_uri_path_segs(path);
+
+        SEL_ASSERT(law_uri_path_next(iter, &segment));
+        SEL_ASSERT(!strcmp(segment, "abc"));
+        SEL_ASSERT(law_uri_path_next(iter, &segment));
+        SEL_ASSERT(!strcmp(segment, "def"));
+        SEL_ASSERT(law_uri_path_next(iter, &segment));
+        SEL_ASSERT(!strcmp(segment, "g"));
+        SEL_ASSERT(!law_uri_path_next(iter, &segment));
+}
+
 int main(int argc, char ** args)
 {
         SEL_INFO();
@@ -439,4 +519,6 @@ int main(int argc, char ** args)
         test_cap_absolute_URI();
         test_cap_origin_URI();
         test_uri_parse();
+        test_parse_query();
+        test_parse_path();
 }

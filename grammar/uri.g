@@ -212,3 +212,20 @@ let cap_absolute_URI =
 
 let cap_origin_URI = (law_uri_cap_path $ path_absolute) cap_query;
 
+# query parsing
+
+set query_reserved = '&' + '=';
+
+set query_char = isgraph - query_reserved;
+
+let query_token = law_uri_cap_token $ 1_127(query_char);
+
+let query_elem = law_uri_cap_elem $ query_token 0_1('=' 0_1(query_token));
+
+let query_list = 0_1(query_elem 0_127('&' query_elem));
+
+# path parsing
+
+let cap_seg_nz = law_uri_cap_seg $ segment_nz;
+
+let path_list = 0_2(FSLASH) 0_127(cap_seg_nz 0_1(FSLASH));
