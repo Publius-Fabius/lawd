@@ -1,18 +1,18 @@
 
-#include "lawd/uri.h"
 #include "lawd/http.h"
 #include "lawd/safemem.h"
-#include "pgenc/buffer.h"
-#include "pgenc/stack.h"
+#include "pgenc/lang.h"
+#include <stdlib.h>
 
 struct law_http {
         struct law_http_cfg *cfg;               /** Configuration */
 };
 
-struct law_http law_http_create(struct law_http_cfg *cfg)
+struct law_http *law_http_create(struct law_http_cfg *cfg)
 {
         struct law_http *http = malloc(sizeof(struct law_http));
         http->cfg = cfg;
+        return http;
 }
 
 void law_http_destroy(struct law_http *http)
@@ -27,16 +27,17 @@ sel_err_t law_http_entry_reqline(
         struct pgc_buf *in,
         struct pgc_buf *out)
 {
-        static const char *CRLF = "\r\n";
+        // static const char *CRLF = "\r\n";
 
-        enum pgc_err err = pgc_buf_scan(in, CRLF, 2);
-        switch(err) {
-                case PGC_ERR_OK:
+        // enum pgc_err err = pgc_buf_scan(in, CRLF, 2);
+        // switch(err) {
+        //         case PGC_ERR_OK:
                         
-                case PGC_ERR_OOB:
+        //         case PGC_ERR_OOB:
 
-                default: return err;
-        }
+        //         default: return err;
+        // }
+        return 0;
 }
 
 sel_err_t law_http_entry_launch(
@@ -46,16 +47,16 @@ sel_err_t law_http_entry_launch(
         struct pgc_buf *in,
         struct pgc_buf *out)
 {
-        static const char *CRLF = "\r\n";
+        // static const char *CRLF = "\r\n";
 
-        enum pgc_err err = pgc_buf_scan(in, CRLF, 2);
-        switch(err) {
-                case PGC_ERR_OK:
+        // enum pgc_err err = pgc_buf_scan(in, CRLF, 2);
+        // switch(err) {
+        //         case PGC_ERR_OK:
 
-                case PGC_ERR_OOB:
-                default: return err;
-        }
-  
+        //         case PGC_ERR_OOB:
+        //         default: return err;
+        // }
+        return 0;
 }
 
 sel_err_t law_http_accept(
@@ -63,41 +64,119 @@ sel_err_t law_http_accept(
         int sock,
         void *state)
 {
-        struct law_http *http = state;
-        const size_t in_length = http->cfg->in_length;
-        const size_t in_guard = http->cfg->in_guard;
-        const size_t out_length = http->cfg->out_length;
-        const size_t out_guard = http->cfg->out_guard;
-        const size_t heap_length = http->cfg->heap_length;
-        const size_t heap_guard = http->cfg->heap_guard;
+        // struct law_http *http = state;
+        // const size_t in_length = http->cfg->in_length;
+        // const size_t in_guard = http->cfg->in_guard;
+        // const size_t out_length = http->cfg->out_length;
+        // const size_t out_guard = http->cfg->out_guard;
+        // const size_t heap_length = http->cfg->heap_length;
+        // const size_t heap_guard = http->cfg->heap_guard;
 
-        struct law_smem *in_mem = law_smem_create(in_length, in_guard);
-        struct law_smem *out_mem = law_smem_create(in_length, in_guard);
-        struct law_smem *heap_mem = law_smem_create(heap_length, heap_guard);
+        // struct law_smem *in_mem = law_smem_create(in_length, in_guard);
+        // struct law_smem *out_mem = law_smem_create(in_length, in_guard);
+        // struct law_smem *heap_mem = law_smem_create(heap_length, heap_guard);
 
-        struct pgc_stk *heap = law_smem_address(heap_mem);
-        SEL_ASSERT(sizeof(struct pgc_stk) <= heap_length);
-        pgc_stk_init(
-                heap, 
-                heap_length - sizeof(struct pgc_stk), 
-                heap + 1);
+        // struct pgc_stk *heap = law_smem_address(heap_mem);
+        // SEL_ASSERT(sizeof(struct pgc_stk) <= heap_length);
+        // pgc_stk_init(
+        //         heap, 
+        //         heap_length - sizeof(struct pgc_stk), 
+        //         heap + 1);
 
-        struct pgc_buf *in = pgc_stk_push(heap, sizeof(struct pgc_buf));
-        struct pgc_buf *out = pgc_stk_push(heap, sizeof(struct pgc_buf));
+        // struct pgc_buf *in = pgc_stk_push(heap, sizeof(struct pgc_buf));
+        // struct pgc_buf *out = pgc_stk_push(heap, sizeof(struct pgc_buf));
 
-        pgc_buf_init(in, law_smem_address(in_mem), in_length, 0);
-        pgc_buf_init(out, law_smem_address(out_mem), out_length, 0);
+        // pgc_buf_init(in, law_smem_address(in_mem), in_length, 0);
+        // pgc_buf_init(out, law_smem_address(out_mem), out_length, 0);
 
-        sel_err_t error = law_http_entry_launch(srv, sock, http, in, out);
+        // sel_err_t error = law_http_entry_launch(srv, sock, http, in, out);
 
-        law_smem_destroy(heap_mem);
-        law_smem_destroy(out_mem);
-        law_smem_destroy(in_mem);
+        // law_smem_destroy(heap_mem);
+        // law_smem_destroy(out_mem);
+        // law_smem_destroy(in_mem);
 
-        return error;
+        // return error;
+        return 0;
 }       
 
-void link_http_parsers()
+enum pgc_err law_http_cap_method(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readterm(
+                buffer, state, arg, LAW_HTTP_METHOD, pgc_lang_readstr);
+}
+
+enum pgc_err law_http_cap_version(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readterm(
+                buffer, state, arg, LAW_HTTP_VERSION, pgc_lang_readstr);
+}
+
+enum pgc_err law_http_cap_field_name(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readterm(
+                buffer, state, arg, LAW_HTTP_FIELD_NAME, pgc_lang_readstr);
+}
+
+
+enum pgc_err law_http_cap_field_value(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readterm(
+                buffer, state, arg, LAW_HTTP_FIELD_VALUE, pgc_lang_readstr);
+}
+
+enum pgc_err law_http_cap_field(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readexp(buffer, state, arg, LAW_HTTP_FIELD, 0);
+}
+
+enum pgc_err law_http_cap_origin_form(
+        struct pgc_buf *buf,
+        void *st,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readexp(buf, st, arg, LAW_HTTP_ORIGIN_FORM, 0);
+}
+
+enum pgc_err law_http_cap_absolute_form(
+        struct pgc_buf *buf,
+        void *st,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readexp(buf, st, arg, LAW_HTTP_ABSOLUTE_FORM, 0);
+}
+
+enum pgc_err law_http_cap_authority_form(
+        struct pgc_buf *buf,
+        void *st,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readexp(buf, st, arg, LAW_HTTP_AUTHORITY_FORM, 0);
+}
+
+enum pgc_err law_http_cap_asterisk_form(
+        struct pgc_buf *buf,
+        void *st,
+        struct pgc_par *arg)
+{
+        return pgc_lang_readexp(buf, st, arg, LAW_HTTP_ASTERISK_FORM, 0);
+}
+
+void law_http_parsers_link()
 {
         /*      dec cap_absolute_URI;
                 dec cap_origin_URI;
@@ -118,6 +197,8 @@ void link_http_parsers()
         ori_URI_l->u.lnk = ori_URI;
         cap_auth_l->u.lnk = cap_auth;
 }
+
+
 
 // struct law_http {
 //         int socket;                     /** Server Socket */

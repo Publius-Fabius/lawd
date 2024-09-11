@@ -21,25 +21,16 @@ struct law_uri_path_iter {
         struct pgc_ast_lst *list;
 };
 
-sel_err_t law_uri_parse(
-        struct pgc_par *parser,
-        struct pgc_buf *buffer,
-        struct pgc_stk *heap,
-        struct law_uri *uri)
+sel_err_t law_uri_init_from_ast(
+        struct law_uri *uri,
+        struct pgc_ast_lst *list)
 {
-        struct pgc_ast_lst *result;
-
         uri->scheme = NULL;
         uri->host = NULL;
         uri->port = NULL;
         uri->path = NULL;
         uri->query = NULL;
-
-        enum pgc_err err = pgc_lang_parse(parser, buffer, heap, &result);
-        if(err != PGC_ERR_OK) {
-                return err;
-        }
-        for(struct pgc_ast_lst *i = result; i; i = i->nxt) {
+        for(struct pgc_ast_lst *i = list; i; i = i->nxt) {
                 switch(pgc_syn_typeof(i->val)) {
                         case LAW_URI_HOST:
                                 uri->host = pgc_ast_tostr(i->val);
@@ -59,8 +50,22 @@ sel_err_t law_uri_parse(
                         default: SEL_ABORT();
                 }
         }
-
         return SEL_ERR_OK;
+}
+
+sel_err_t law_uri_parse(
+        struct pgc_par *parser,
+        struct pgc_buf *buffer,
+        struct pgc_stk *heap,
+        struct law_uri *uri)
+{
+        struct pgc_ast_lst *result;
+        enum pgc_err err = pgc_lang_parse(parser, buffer, heap, &result);
+        if(err != PGC_ERR_OK) {
+                return err;
+        } else {
+                return law_uri_init_from_ast(uri, result);
+        }
 }
 
 struct pgc_par *law_uri_parsers_query_list(struct law_uri_parsers *pars);

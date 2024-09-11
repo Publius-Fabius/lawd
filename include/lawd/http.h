@@ -74,6 +74,17 @@ enum law_http_version {
         LAW_HTTP_2
 };
 
+enum law_http_part {
+        LAW_HTTP_METHOD,                /** Method */
+        LAW_HTTP_VERSION,               /** Version */
+        LAW_HTTP_FIELD,                 /** Header Field */
+        LAW_HTTP_FIELD_NAME,            /** Header Field Name */
+        LAW_HTTP_FIELD_VALUE,           /** Header Field Value */
+        LAW_HTTP_ORIGIN_FORM,           /** Origin URI Form */
+        LAW_HTTP_ABSOLUTE_FORM,         /** Absolute URI Form */
+        LAW_HTTP_AUTHORITY_FORM         /** Authority URI Form */
+};
+
 /** HTTP Request */
 struct law_http_req;
 
@@ -109,20 +120,20 @@ struct law_http;
 /**
  * Get the request's method.
  */
-enum law_http_method law_http_getmethod(struct law_http_req *req);
+enum law_http_method law_http_req_method(struct law_http_req *req);
 
 /** 
  * Get the request's HTTP version.
  */
-enum law_http_version law_http_getversion(struct law_http_req *req);
+enum law_http_version law_http_req_version(struct law_http_req *req);
 
 /**
  * Get the request's URI.
  */
-struct law_uri *law_http_geturi(struct law_http_req *req);
+struct law_uri *law_http_req_uri(struct law_http_req *req);
 
 /** Create a new HTTP state. */
-struct law_http law_http_create(struct law_http_cfg *cfg);
+struct law_http *law_http_create(struct law_http_cfg *cfg);
 
 /** Destroy HTTP state. */
 void law_http_destroy(struct law_http *http);
@@ -135,39 +146,80 @@ sel_err_t law_http_accept(
         int socket,
         void *state);
 
-/** HTTP Parser Dictionary */
-struct law_http_parsers;
+enum pgc_err law_http_cap_method(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_version(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_field_name(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_field_value(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_field(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_origin_form(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_absolute_form(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_authority_form(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
+
+enum pgc_err law_http_cap_asterisk_form(
+        struct pgc_buf *buffer,
+        void *state,
+        struct pgc_par *arg);
 
 /** Link */
-void link_http_parsers();
+void law_http_parsers_link();
 
-/** Export HTTP Parsers */
+/* Auto-Generated Parsers */
+
+struct law_http_parsers;
+
 struct law_http_parsers *export_law_http_parsers();
 
 struct pgc_par *law_http_parsers_tchar(struct law_http_parsers *x);
 
 struct pgc_par *law_http_parsers_token(struct law_http_parsers *x);
 
-struct pgc_par *law_http_parsers_method(struct law_http_parsers *x);
+struct pgc_par *law_http_parsers_request_target(struct law_http_parsers *x);
 
-struct pgc_par *law_http_parsers_path_absolute(struct law_http_parsers *x);
+struct pgc_par *law_http_parsers_start_line(struct law_http_parsers *x);
 
-struct pgc_par *law_http_parsers_absolute_URI(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_authority(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_query(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_origin_form(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_absolute_form(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_authority_form(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_asterisk_form(struct law_http_parsers *x);
+struct pgc_par *law_http_parsers_field_content(struct law_http_parsers *x);
 
 struct pgc_par *law_http_parsers_field_value(struct law_http_parsers *x);
 
 struct pgc_par *law_http_parsers_header_field(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_HTTP_message_head(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_cap_absolute_URI(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_cap_origin_URI(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_cap_authority(struct law_http_parsers *x);
 
 #endif

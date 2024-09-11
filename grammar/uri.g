@@ -196,8 +196,11 @@ let origin_URI = path_absolute 0_1(QMARK query);
 
 # captures
 
+let cap_scheme = law_uri_cap_scheme $ scheme;
+
 let cap_authority = 
-        (law_uri_cap_host $ host) 0_1(COLON (law_uri_cap_port $ port));
+        (law_uri_cap_host $ host) 
+        0_1(COLON (law_uri_cap_port $ port));
 
 let cap_query = 0_1(QMARK (law_uri_cap_query $ query));
 
@@ -207,8 +210,7 @@ let cap_heirpart =
         | (law_uri_cap_path $ path_rootless)
         | (law_uri_cap_path $ path_empty);
 
-let cap_absolute_URI = 
-        (law_uri_cap_scheme $ scheme) COLON cap_heirpart cap_query;
+let cap_absolute_URI = cap_scheme COLON cap_heirpart cap_query;
 
 let cap_origin_URI = (law_uri_cap_path $ path_absolute) cap_query;
 

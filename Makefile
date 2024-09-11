@@ -90,6 +90,16 @@ tmp/lawd/http_parsers.c : grammar/http.g
 	bin/pgenc -g $< -s $@ -d law_http_parsers
 build/lawd/http_parsers.o : tmp/lawd/http_parsers.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+build/lawd/http.o : source/lawd/http.c 
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_http: tests/lawd/http.c \
+	build/lawd/http_parsers.o \
+	build/lawd/uri_parsers.o \
+	build/lawd/http.o \
+	build/lawd/uri.o \
+	lib/libselc.a \
+	lib/libpgenc.a
+	$(CC) $(CFLAGS) -o $@ $^
 
 # test suite
 suite: \

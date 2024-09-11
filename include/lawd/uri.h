@@ -111,6 +111,7 @@
 
 #include "pgenc/parser.h"
 #include "pgenc/stack.h"
+#include "pgenc/ast.h"
 #include "lawd/error.h"
 #include <stddef.h>
 
@@ -211,6 +212,10 @@ struct law_uri_query_iter *law_uri_query_next(
         struct law_uri_query_iter *query,
         const char **name,
         const char **value);
+
+sel_err_t law_uri_init_from_ast(
+        struct law_uri *uri,
+        struct pgc_ast_lst *ast);
 
 /**
  * Parse the URI starting at the buffer's current offset.
