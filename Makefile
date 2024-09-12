@@ -97,6 +97,7 @@ bin/test_http: tests/lawd/http.c \
 	build/lawd/uri_parsers.o \
 	build/lawd/http.o \
 	build/lawd/uri.o \
+	build/lawd/safemem.o \
 	lib/libselc.a \
 	lib/libpgenc.a
 	$(CC) $(CFLAGS) -o $@ $^

@@ -130,7 +130,7 @@ struct law_uri_query_iter *law_uri_query_elems(
         return iter;
 }
 
-void law_uri_query_finish(
+void law_uri_query_free(
         struct law_uri_query_iter *query)
 {
         free(query);
@@ -143,7 +143,7 @@ struct law_uri_query_iter *law_uri_query_next(
 {
         static const char *EMPTY = "";
         if(!query->list) {
-                law_uri_query_finish(query);
+                law_uri_query_free(query);
                 return NULL;
         }
         struct pgc_ast_lst *lst = pgc_ast_tolst(query->list->val);
@@ -213,7 +213,7 @@ struct law_uri_path_iter *law_uri_path_segs(
         return iter;
 }
 
-void law_uri_path_finish(struct law_uri_path_iter *iter)
+void law_uri_path_free(struct law_uri_path_iter *iter)
 {
         free(iter);
 }
@@ -223,7 +223,7 @@ struct law_uri_path_iter *law_uri_path_next(
         const char **segment)
 {
         if(!iter->list) {
-                law_uri_path_finish(iter);
+                law_uri_path_free(iter);
                 return NULL;
         }
         *segment = pgc_ast_tostr(iter->list->val);

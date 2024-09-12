@@ -57,23 +57,24 @@
 
 /** HTTP Method */
 enum law_http_method {
-        LAW_HTTP_GET,
-        LAW_HTTP_POST,
-        LAW_HTTP_HEAD,
-        LAW_HTTP_PUT,
-        LAW_HTTP_DELETE,
-        LAW_HTTP_PATCH,
-        LAW_HTTP_OPTIONS,
-        LAW_HTTP_TRACE,
-        LAW_HTTP_CONNECT
+        LAW_HTTP_GET,                   /** HTTP Get Method */
+        LAW_HTTP_POST,                  /** HTTP Post Method */
+        LAW_HTTP_HEAD,                  /** HTTP Head Method */
+        LAW_HTTP_PUT,                   /** HTTP Put Method */
+        LAW_HTTP_DELETE,                /** HTTP Delete Method */
+        LAW_HTTP_PATCH,                 /** HTTP Patch Method */
+        LAW_HTTP_OPTIONS,               /** HTTP Options Method */
+        LAW_HTTP_TRACE,                 /** HTTP Trace Method */
+        LAW_HTTP_CONNECT                /** HTTP Connect Method */
 };
 
 /** HTTP Version */
 enum law_http_version {
-        LAW_HTTP_1_1,
-        LAW_HTTP_2
+        LAW_HTTP_1_1,                   /** HTTP Version 1.1 */
+        LAW_HTTP_2                      /** HTTP Version 2 */
 };
 
+/** HTTP Message Part */
 enum law_http_part {
         LAW_HTTP_METHOD,                /** Method */
         LAW_HTTP_VERSION,               /** Version */
@@ -90,6 +91,18 @@ struct law_http_req;
 
 /** HTTP Response */
 struct law_http_res;
+
+/** HTTP Headers */
+struct law_http_hdrs;
+
+/** HTTP Headers Iterator */
+struct law_http_hdrs_iter;
+
+/** HTTP Input Stream */
+struct law_http_istream;
+
+/** HTTP Output Stream */
+struct law_http_ostream;
 
 /** 
  * Callback type for handling requests.
@@ -120,23 +133,146 @@ struct law_http;
 /**
  * Get the request's method.
  */
-enum law_http_method law_http_req_method(struct law_http_req *req);
+enum law_http_method law_http_req_method(
+        struct law_http_req *request);
 
 /** 
  * Get the request's HTTP version.
  */
-enum law_http_version law_http_req_version(struct law_http_req *req);
+enum law_http_version law_http_req_version(
+        struct law_http_req *request);
 
 /**
  * Get the request's URI.
  */
-struct law_uri *law_http_req_uri(struct law_http_req *req);
+struct law_uri *law_http_req_uri(
+        struct law_http_req *request);
 
-/** Create a new HTTP state. */
-struct law_http *law_http_create(struct law_http_cfg *cfg);
+/**
+ * Get the request's headers.
+ */
+struct law_http_hdrs *law_http_req_headers(
+        struct law_http_req *request);
 
-/** Destroy HTTP state. */
-void law_http_destroy(struct law_http *http);
+/**
+ * Get the header value by name.
+ */
+const char *law_http_hdrs_lookup(
+        struct law_http_hdrs *headers,
+        const char *name);
+
+/**
+ * Get an iterator for the header collection.
+ */
+struct law_http_hdrs_iter *law_http_hdrs_elems(
+        struct law_http_hdrs *headers);
+
+/**
+ * Free the header iterator.
+ */
+void law_http_hdrs_iter_free(
+        struct law_http_hdrs_iter *iterator);
+
+/**
+ * Get the next header field <name, value> pair.
+ */
+struct law_http_hdrs_iter *law_http_hdrs_iter_next(
+        struct law_http_hdrs_iter *iterator,
+        const char **name,
+        const char **value);
+
+/**
+ * Get an input_stream limited to content_length bytes.
+ */
+struct law_http_istream *law_http_req_body(
+        struct law_http_req *request,
+        const size_t content_length);
+
+/**
+ * Setup the request to read Content-Type: multipart/form-data.
+ */
+sel_err_t law_http_req_multipart_form_data(
+        struct law_http_req *request,
+        const char *boundary);
+
+/**
+ * Get multipart/form-data section headers.
+ */
+struct law_http_hdrs *law_http_req_multipart_form_data_headers(
+        struct law_http_req *request);
+
+/**
+ * Get multipart/form-data body.
+ */
+struct law_http_istream *law_http_req_multipart_form_data_body(
+        struct law_http_req *request);
+
+/* ISTREAM SECTION */
+
+/**
+ * Get a view of the input_stream's available bytes.
+ */
+struct pgc_buf *law_http_istream_view(
+        struct pgc_buf *buffer,
+        struct law_http_istream *input_stream);
+
+/**
+ * Flush n-bytes of stream data.
+ */
+sel_err_t law_http_istream_flush(
+        struct law_http_istream *input_stream,
+        const size_t nbytes);
+
+/* RESPONSE SECTION */
+
+/** Get status code description. */
+const char *law_http_res_code(const int code);
+
+/**
+ * Set response status code.
+ */
+sel_err_t law_http_res_status(
+        struct law_http_res *response);
+
+/**
+ * Include the header in the response.
+ */
+sel_err_t law_http_res_header(
+        struct law_http_res *response,
+        const char *name,
+        const char *value);
+
+/**
+ * Get a stream for the response's body.
+ */
+struct law_http_ostream *law_http_res_body(
+        struct law_http_res *response);
+
+/**
+ * Get a view of the output_stream's available bytes.
+ */
+struct pgc_buf *law_http_ostream_view(
+        struct pgc_buf *buffer,
+        struct law_http_ostream *output_stream);
+
+/**
+ * Flush n-bytes of stream data.
+ */
+sel_err_t law_http_ostream_flush(
+        struct law_http_ostream *output_stream,
+        const size_t nbytes);
+
+/** 
+ * Create a new HTTP state. 
+ */
+struct law_http *law_http_create(
+        struct law_http_cfg *configuration);
+
+/** 
+ * Destroy HTTP state. 
+ */
+void law_http_destroy(
+        struct law_http *http);
 
 /**
  * Entry function for HTTP/S functionality.
@@ -145,6 +281,8 @@ sel_err_t law_http_accept(
         struct law_srv *server,
         int socket,
         void *state);
+
+/* PARSER SECTION */
 
 enum pgc_err law_http_cap_method(
         struct pgc_buf *buffer,

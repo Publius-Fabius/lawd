@@ -102,8 +102,6 @@
  * URI_reference = URI | relative_ref
  * 
  * absolute_URI = scheme ":" hier_part [ "?" query ]
- * 
- *
  */
 
 #ifndef LAWD_URI_H
@@ -170,7 +168,7 @@ struct law_uri_path_iter *law_uri_path_segs(
 /**
  * Finish an incomplete iteration.
  */
-void law_uri_path_finish(
+void law_uri_path_free(
         struct law_uri_path_iter *path);
 
 /**
@@ -202,7 +200,7 @@ struct law_uri_query_iter *law_uri_query_elems(
 /**
  * Finish an incomplete iteration.
  */
-void law_uri_query_finish(
+void law_uri_query_free(
         struct law_uri_query_iter *query);
 
 /**
