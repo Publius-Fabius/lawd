@@ -21,7 +21,7 @@ struct law_uri_path_iter {
         struct pgc_ast_lst *list;
 };
 
-sel_err_t law_uri_init_from_ast(
+struct law_uri *law_uri_from_ast(
         struct law_uri *uri,
         struct pgc_ast_lst *list)
 {
@@ -50,7 +50,7 @@ sel_err_t law_uri_init_from_ast(
                         default: SEL_ABORT();
                 }
         }
-        return SEL_ERR_OK;
+        return uri;
 }
 
 sel_err_t law_uri_parse(
@@ -64,7 +64,7 @@ sel_err_t law_uri_parse(
         if(err != PGC_ERR_OK) {
                 return err;
         } else {
-                return law_uri_init_from_ast(uri, result);
+                return law_uri_from_ast(uri, result);
         }
 }
 

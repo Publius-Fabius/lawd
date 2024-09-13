@@ -104,16 +104,30 @@ struct law_http_istream;
 /** HTTP Output Stream */
 struct law_http_ostream;
 
+/** HTTP State */
+struct law_http;
+
 /** 
  * Callback type for handling requests.
  * @param server The server.
  * @param request The request.
  * @param response The response. 
  */
-typedef sel_err_t (*law_http_handler_t)(
+typedef sel_err_t (*law_http_onaccept_t)(
         struct law_srv *server,
         struct law_http_req *request,
         struct law_http_res *response);
+
+typedef sel_err_t (*law_http_onfail_t)(
+        struct law_srv *server,
+        struct law_http *http,
+        struct law_http_req *request,
+        struct law_http_res *response,
+        const int status_code,
+        sel_err_t error_type,
+        const char *file,
+        const char *func,
+        const int line);
 
 /** HTTP Configuration */
 struct law_http_cfg {
@@ -124,11 +138,13 @@ struct law_http_cfg {
         size_t out_guard;                       /** Output Buffer Guard */
         size_t heap_length;                     /** Heap Length */
         size_t heap_guard;                      /** Heap Guard */
-        law_http_handler_t handler;             /** Handler Callback */
+        law_http_onaccept_t onaccept;           /** Accept Callback */
+        law_http_onfail_t onfail;               /** Failure Callback */
 };
 
-/** HTTP State */
-struct law_http;
+#define LAW_HTTP_FAIL(srv, ht, req, res, status, err) \
+        ((ht)->cfg->onfail)( \
+        srv, ht, req, res, status, err, __FILE__, __func__, __LINE__)
 
 /**
  * Get the request's method.
@@ -226,7 +242,7 @@ sel_err_t law_http_istream_flush(
 /* RESPONSE SECTION */
 
 /** Get status code description. */
-const char *law_http_res_code(const int code);
+const char *law_http_res_codestr(const int code);
 
 /**
  * Set response status code.
@@ -329,8 +345,8 @@ enum pgc_err law_http_cap_asterisk_form(
         void *state,
         struct pgc_par *arg);
 
-/** Link */
-void law_http_parsers_link();
+/** Export and Link */
+struct law_http_parsers *law_http_parsers_link();
 
 /* Auto-Generated Parsers */
 

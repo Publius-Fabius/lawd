@@ -111,4 +111,12 @@ sel_err_t law_srv_yield(struct law_srv *server);
  */
 struct pollfd *law_srv_lease(struct law_srv *server);
 
+/**
+ * Poll events.
+ */
+int law_srv_poll(
+        struct law_srv *server, 
+        const int socket,
+        const int events);
+
 #endif

@@ -211,7 +211,7 @@ struct law_uri_query_iter *law_uri_query_next(
         const char **name,
         const char **value);
 
-sel_err_t law_uri_init_from_ast(
+struct law_uri *law_uri_from_ast(
         struct law_uri *uri,
         struct pgc_ast_lst *ast);
 

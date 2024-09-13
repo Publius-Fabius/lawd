@@ -232,6 +232,24 @@ struct pollfd *law_srv_lease(struct law_srv *s)
         return law_srv_pfds_take(s->pfds[0]);
 }
 
+int law_srv_poll(
+        struct law_srv *server, 
+        const int socket,
+        const int events)
+{
+        /* Set up polling descriptor. */
+        struct pollfd *pfd = law_srv_lease(server);
+        pfd->fd = socket;
+        pfd->events = events;
+        pfd->revents = 0;
+
+        /* Yield back to the scheduler. */
+        law_srv_yield(server);
+
+        /* Return any triggered events. */
+        return pfd->revents;
+}
+
 static sel_err_t law_srv_listen(struct law_srv *s)
 {
         struct sockaddr_storage addr;

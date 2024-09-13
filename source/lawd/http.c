@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <ctype.h>
+#include <errno.h>
 #include <openssl/types.h>
 
 struct law_http {
@@ -196,13 +198,181 @@ void law_http_destroy(struct law_http *http)
         free(http);
 }
 
-sel_err_t law_http_entry_launch(
+static enum law_http_method law_http_find_method(const char *str)
+{
+        if(!strcmp(str, "GET")) {
+                return LAW_HTTP_GET;
+        } else if(!strcmp(str, "POST")) {
+                return LAW_HTTP_POST;
+        } else if(!strcmp(str, "HEAD")) {
+                return LAW_HTTP_HEAD;
+        } else if(!strcmp(str, "PUT")) {
+                return LAW_HTTP_PUT;
+        } else if(!strcmp(str, "DELETE")) {
+                return LAW_HTTP_DELETE;
+        } else if(!strcmp(str, "PATCH")) {
+                return LAW_HTTP_PATCH;
+        } else if(!strcmp(str, "OPTIONS")) {
+                return LAW_HTTP_OPTIONS;
+        } else if(!strcmp(str, "TRACE")) {
+                return LAW_HTTP_TRACE;
+        } else if(!strcmp(str, "CONNECT")) {
+                return LAW_HTTP_CONNECT;
+        } else {
+                return -1;
+        }
+}
+
+static enum law_http_version law_http_find_version(const char *str)
+{
+        if(!strcmp(str, "HTTP/1.1")) {
+                return LAW_HTTP_1_1;
+        } else if(!strcmp(str, "HTTP/2")) {
+                return LAW_HTTP_2;
+        } else {
+                return -1;
+        }
+}
+
+static sel_err_t law_http_accept_launch(
         struct law_srv *server,
         struct law_http *http,
-        struct law_http_req *req,
-        struct law_http_res *res)
+        struct law_http_req *request,
+        struct law_http_res *response)
 {
-                return 0;
+        int socket = request->socket;
+        struct pgc_buf *in = request->in;
+        struct pgc_stk *heap = request->heap;
+        const size_t MAX = pgc_buf_max(in);
+        enum pgc_err err;
+        
+        /* Find the end of the HTTP message's head.*/
+        for(;;) {
+
+                const size_t end = pgc_buf_end(in);
+                if(end == MAX) {
+                        return LAW_HTTP_FAIL(
+                                server, 
+                                http, 
+                                request, 
+                                response, 
+                                400, 
+                                LAW_ERR_BUFFER_LIMIT);
+                }
+
+                err = pgc_buf_seek(in, 0);
+
+                SEL_ASSERT(err == PGC_ERR_OK);
+                SEL_ASSERT(end <= MAX);
+
+                err = pgc_buf_read(in, socket, MAX - end);
+                
+                if(err == PGC_ERR_SYS) {
+                        if(errno == EAGAIN || errno == EWOULDBLOCK) {
+                                law_srv_poll(
+                                        server, 
+                                        socket, 
+                                        POLLIN | POLLHUP);
+                                continue;
+                        } else {
+                                return LAW_HTTP_FAIL(
+                                        server, 
+                                        http, 
+                                        request, 
+                                        response, 
+                                        500, 
+                                        LAW_ERR_SOCKET_IO);
+                        }
+                } else if(err == PGC_ERR_EOF) {
+                        return LAW_HTTP_FAIL(
+                                server, 
+                                http, 
+                                request, 
+                                response, 
+                                400, 
+                                LAW_ERR_UNEXPECTED_EOF);
+                } 
+
+                SEL_ASSERT(err == PGC_ERR_OK);
+
+                err = pgc_buf_seek(in, end - 3);
+
+                SEL_ASSERT(err == PGC_ERR_OK);
+
+                err = pgc_buf_scan(in, "\r\n\r\n", 4);
+                if(err == PGC_ERR_OK) {
+                        break;
+                } 
+
+                SEL_ASSERT(err == PGC_ERR_OOB);
+        }
+
+        /* Parse the HTTP message's head. */
+
+        const size_t head_end = pgc_buf_tell(in);
+        err = pgc_buf_seek(in, 0);
+
+        SEL_ASSERT(err == PGC_ERR_OK);
+
+        struct pgc_buf lens; 
+        pgc_buf_lens(&lens, in, head_end);
+
+        struct law_http_parsers *dict = law_http_parsers_link();
+        struct pgc_par *head_par = law_http_parsers_HTTP_message_head(dict);
+
+        struct pgc_ast_lst *head;
+
+        err = pgc_lang_parse(head_par, &lens, heap, &head);
+        if(err != PGC_ERR_OK) {
+                return LAW_HTTP_FAIL(
+                        server, 
+                        http, 
+                        request, 
+                        response, 
+                        400, 
+                        LAW_ERR_MALFORMED_HEAD);
+        }
+
+        /* Extract data from the parse result. */
+
+        const enum law_http_method method = law_http_find_method(
+                pgc_ast_tostr(pgc_ast_at(head, 0)->val));
+
+        if(method == -1) {
+                return LAW_HTTP_FAIL(
+                        server,
+                        http,
+                        request,
+                        response,
+                        405,
+                        LAW_ERR_UNKNOWN_METHOD);
+        }
+
+        struct law_uri uri;
+        law_uri_from_ast(&uri, pgc_ast_tolst(pgc_ast_at(head, 1)->val));
+        
+        const enum law_http_version version = law_http_find_version(
+                pgc_ast_tostr(pgc_ast_at(head, 2)->val));
+
+        if(version == -1) {
+                return LAW_HTTP_FAIL(
+                        server,
+                        http,
+                        request,
+                        response,
+                        505,
+                        LAW_ERR_UNSUPPORTED_VERSION);
+        }
+
+        struct law_http_hdrs hdrs;
+        hdrs.list = pgc_ast_at(head, 3);
+
+        request->headers = &hdrs;
+        request->uri = &uri;
+        request->method = method;
+        request->version = version;
+        
+        return http->cfg->onaccept(server, request, response);
 }
 
 sel_err_t law_http_accept(
@@ -219,7 +389,7 @@ sel_err_t law_http_accept(
         const size_t heap_guard = http->cfg->heap_guard;
 
         struct law_smem *in_mem = law_smem_create(in_length, in_guard);
-        struct law_smem *out_mem = law_smem_create(in_length, in_guard);
+        struct law_smem *out_mem = law_smem_create(out_length, out_guard);
         struct law_smem *heap_mem = law_smem_create(heap_length, heap_guard);
 
         struct pgc_stk heap;
@@ -237,7 +407,7 @@ sel_err_t law_http_accept(
         struct law_http_res res;
         res.out = &out;
 
-        sel_err_t error = law_http_entry_launch(srv, http, &req, &res);
+        sel_err_t error = law_http_accept_launch(srv, http, &req, &res);
 
         law_smem_destroy(heap_mem);
         law_smem_destroy(out_mem);
@@ -314,14 +484,21 @@ enum pgc_err law_http_cap_authority_form(
         return pgc_lang_readexp(buf, st, arg, LAW_HTTP_AUTHORITY_FORM, 0);
 }
 
-void law_http_parsers_link()
+struct law_http_parsers *law_http_parsers_link()
 {
         /*      dec cap_absolute_URI;
                 dec cap_origin_URI;
                 dec cap_authority; */
 
-        struct law_uri_parsers *urips = export_law_uri_parsers();
-        struct law_http_parsers *https = export_law_http_parsers();
+        static struct law_http_parsers *https = NULL;
+        static struct law_uri_parsers *urips = NULL;
+
+        if(https) {
+                return https;
+        }
+
+        https = export_law_http_parsers();
+        urips = export_law_uri_parsers();
 
         struct pgc_par *abs_URI = law_uri_parsers_cap_absolute_URI(urips);
         struct pgc_par *ori_URI = law_uri_parsers_cap_origin_URI(urips);
@@ -334,4 +511,6 @@ void law_http_parsers_link()
         abs_URI_l->u.lnk = abs_URI;
         ori_URI_l->u.lnk = ori_URI;
         cap_auth_l->u.lnk = cap_auth;
+
+        return https;
 }
