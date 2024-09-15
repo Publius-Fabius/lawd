@@ -259,7 +259,7 @@ static sel_err_t law_srv_listen(struct law_srv *s)
         struct sockaddr_in *in;
         struct sockaddr_in6 *in6;
 
-        switch(s->cfg->protocol) {
+        switch(s->cfg->prot) {
 
                 /* TCP over IPv4 */
                 case LAW_SRV_TCP: 
@@ -402,7 +402,7 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
                                 // conn->mode = LAW_SRV_CLOSED;
                                 law_srv_conn_destroy(conn);
                                 break;
-                        case LAW_ERR_AGAIN:
+                        case LAW_ERR_TRY_AGAIN:
                                 /** Accept is suspended until later. */
                                 conn->mode = LAW_SRV_SUSPENDED;
                                 *law_srv_conns_take(srv->conns[0]) = conn;
@@ -448,7 +448,7 @@ static sel_err_t law_srv_loop(struct law_srv *srv)
         while(srv->mode == LAW_SRV_RUNNING) {
 
                 /* Call user's loop function. */
-                SEL_TRY_QUIETLY(srv->cfg->loop(srv, srv->cfg->state));
+                SEL_TRY_QUIETLY(srv->cfg->tick(srv, srv->cfg->state));
 
                 /** Accept new connections. */
                 SEL_TRY_QUIETLY(law_srv_accept(srv));
@@ -476,7 +476,7 @@ sel_err_t law_srv_start(struct law_srv *server)
                 server->mode = LAW_SRV_RUNNING;
                 return law_srv_loop(server);
         } else {
-                return LAW_ERR_MODE;
+                return LAW_ERR_BAD_MODE;
         }
 }
 

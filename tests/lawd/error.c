@@ -11,8 +11,8 @@ void test_builtins()
 void test_customs() 
 {
         SEL_INFO();
-        SEL_TEST(!strcmp(sel_lookup(LAW_ERR_AGAIN), "LAW_ERR_AGAIN"));
-        SEL_TEST(!strcmp(sel_lookup(LAW_ERR_MODE), "LAW_ERR_MODE"));
+        SEL_TEST(!strcmp(sel_lookup(LAW_ERR_TRY_AGAIN), "LAW_ERR_AGAIN"));
+        SEL_TEST(!strcmp(sel_lookup(LAW_ERR_BAD_MODE), "LAW_ERR_MODE"));
 }
 
 int main(int argc, char **args) 

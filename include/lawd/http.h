@@ -3,6 +3,8 @@
 
 #include "lawd/server.h"
 #include "lawd/uri.h"
+#include <stdio.h>
+#include <sys/socket.h>
 
 /**
  *                                 RFC7230 
@@ -57,21 +59,21 @@
 
 /** HTTP Method */
 enum law_http_method {
-        LAW_HTTP_GET,                   /** HTTP Get Method */
-        LAW_HTTP_POST,                  /** HTTP Post Method */
-        LAW_HTTP_HEAD,                  /** HTTP Head Method */
-        LAW_HTTP_PUT,                   /** HTTP Put Method */
-        LAW_HTTP_DELETE,                /** HTTP Delete Method */
-        LAW_HTTP_PATCH,                 /** HTTP Patch Method */
-        LAW_HTTP_OPTIONS,               /** HTTP Options Method */
-        LAW_HTTP_TRACE,                 /** HTTP Trace Method */
-        LAW_HTTP_CONNECT                /** HTTP Connect Method */
+        LAW_HTTP_GET,                   /** Get Method */
+        LAW_HTTP_POST,                  /** Post Method */
+        LAW_HTTP_HEAD,                  /** Head Method */
+        LAW_HTTP_PUT,                   /** Put Method */
+        LAW_HTTP_DELETE,                /** Delete Method */
+        LAW_HTTP_PATCH,                 /** Patch Method */
+        LAW_HTTP_OPTIONS,               /** Options Method */
+        LAW_HTTP_TRACE,                 /** Trace Method */
+        LAW_HTTP_CONNECT                /** Connect Method */
 };
 
 /** HTTP Version */
 enum law_http_version {
-        LAW_HTTP_1_1,                   /** HTTP Version 1.1 */
-        LAW_HTTP_2                      /** HTTP Version 2 */
+        LAW_HTTP_1_1,                   /** Version 1.1 */
+        LAW_HTTP_2                      /** Version 2 */
 };
 
 /** HTTP Message Part */
@@ -86,217 +88,304 @@ enum law_http_part {
         LAW_HTTP_AUTHORITY_FORM         /** Authority URI Form */
 };
 
-/** HTTP Request */
-struct law_http_req;
-
-/** HTTP Response */
-struct law_http_res;
-
 /** HTTP Headers */
 struct law_http_hdrs;
 
 /** HTTP Headers Iterator */
-struct law_http_hdrs_iter;
+struct law_http_hdrs_i;
 
-/** HTTP Input Stream */
-struct law_http_istream;
+/** HTTP Server Context */
+struct law_http_sctx;
 
-/** HTTP Output Stream */
-struct law_http_ostream;
+/** HTTP Server-Side Request */
+struct law_http_sreq;
 
-/** HTTP State */
-struct law_http;
+/** HTTP Client-Side Request */
+struct law_http_creq;
 
 /** 
- * Callback type for handling requests.
- * @param server The server.
- * @param request The request.
- * @param response The response. 
+ * HTTP Server Request Handler 
+ * @param server The network server
+ * @param context The HTTP server context.
+ * @return A possible error.
  */
-typedef sel_err_t (*law_http_onaccept_t)(
+typedef sel_err_t (*law_http_handler_t)(
         struct law_srv *server,
-        struct law_http_req *request,
-        struct law_http_res *response);
+        struct law_http_sctx *context,
+        struct law_http_sreq *request);
 
-typedef sel_err_t (*law_http_onfail_t)(
+/**
+ * Callback type for handling server failures.
+ */
+typedef sel_err_t (*law_http_fail_t)(
         struct law_srv *server,
-        struct law_http *http,
-        struct law_http_req *request,
-        struct law_http_res *response,
+        struct law_http_sctx *context,
+        struct law_http_sreq *request,
         const int status_code,
         sel_err_t error_type,
         const char *file,
         const char *func,
         const int line);
 
-/** HTTP Configuration */
-struct law_http_cfg {
-        enum law_http_version version;          /** HTTP Version */
+/**
+ * Macro for dispatching an http server-side request failure.
+ */
+#define LAW_HTTP_FAIL(srv, http, task, status, err) ((http)->cfg->fail)( \
+        srv, http, task, status, err, __FILE__, __func__, __LINE__)
+
+/** HTTP Server Context Configuration */
+struct law_http_sctx_cfg {
         size_t in_length;                       /** Input Buffer Length */
         size_t in_guard;                        /** Input Buffer Guard */
         size_t out_length;                      /** Output Buffer Length */
         size_t out_guard;                       /** Output Buffer Guard */
         size_t heap_length;                     /** Heap Length */
         size_t heap_guard;                      /** Heap Guard */
-        law_http_onaccept_t onaccept;           /** Accept Callback */
-        law_http_onfail_t onfail;               /** Failure Callback */
+        law_http_fail_t fail;                   /** Fail Callback */
+        law_http_handler_t handler;             /** Request Handler */
+        FILE *error_log;                        /** Error Log File */
+        FILE *access_log;                       /** Access Log File */
 };
 
-#define LAW_HTTP_FAIL(srv, ht, req, res, status, err) \
-        ((ht)->cfg->onfail)( \
-        srv, ht, req, res, status, err, __FILE__, __func__, __LINE__)
-
-/**
- * Get the request's method.
- */
-enum law_http_method law_http_req_method(
-        struct law_http_req *request);
-
-/** 
- * Get the request's HTTP version.
- */
-enum law_http_version law_http_req_version(
-        struct law_http_req *request);
-
-/**
- * Get the request's URI.
- */
-struct law_uri *law_http_req_uri(
-        struct law_http_req *request);
-
-/**
- * Get the request's headers.
- */
-struct law_http_hdrs *law_http_req_headers(
-        struct law_http_req *request);
+/** HTTP Client Request Configuration */
+struct law_http_creq_cfg {
+        size_t in_length;                       /** Input Buffer Length */
+        size_t in_guard;                        /** Input Buffer Guard */
+        size_t out_length;                      /** Output Buffer Length */
+        size_t out_guard;                       /** Output Buffer Guard */
+        size_t heap_length;                     /** Heap Length */
+        size_t heap_guard;                      /** Heap Guard */
+};
 
 /**
  * Get the header value by name.
+ * @param headers A collection of HTTP message headers.
+ * @param name The header field to search for.
+ * @return The field's value or NULL.
  */
-const char *law_http_hdrs_lookup(
+const char *law_http_hdrs_get(
         struct law_http_hdrs *headers,
         const char *name);
 
 /**
  * Get an iterator for the header collection.
+ * @param headers A collection of HTTP message headers.
+ * @return The header collection iterator.
  */
-struct law_http_hdrs_iter *law_http_hdrs_elems(
+struct law_http_hdrs_i *law_http_hdrs_elems(
         struct law_http_hdrs *headers);
 
 /**
  * Free the header iterator.
  */
-void law_http_hdrs_iter_free(
-        struct law_http_hdrs_iter *iterator);
+void law_http_hdrs_i_free(
+        struct law_http_hdrs_i *iterator);
 
 /**
  * Get the next header field <name, value> pair.
  */
-struct law_http_hdrs_iter *law_http_hdrs_iter_next(
-        struct law_http_hdrs_iter *iterator,
+struct law_http_hdrs_i *law_http_hdrs_i_next(
+        struct law_http_hdrs_i *iterator,
         const char **name,
         const char **value);
 
-/**
- * Get an input_stream limited to content_length bytes.
+/** 
+ * Get the request's input buffer.
+ * @param request The server-side request.
+ * @return The request's input buffer.
  */
-struct law_http_istream *law_http_req_body(
-        struct law_http_req *request,
-        const size_t content_length);
+struct pgc_buf *law_http_sreq_in(
+        struct law_http_sreq *request);
 
-/**
- * Setup the request to read Content-Type: multipart/form-data.
+/** 
+ * Get the request's output buffer.
+ * @param request The server-side request.
+ * @return The request's output buffer.
  */
-sel_err_t law_http_req_multipart_form_data(
-        struct law_http_req *request,
-        const char *boundary);
+struct pgc_buf *law_http_sreq_out(
+        struct law_http_sreq *request);
 
-/**
- * Get multipart/form-data section headers.
+/** 
+ * Get the request's heap.
+ * @param request The server-side request.
+ * @return The request's heap.
  */
-struct law_http_hdrs *law_http_req_multipart_form_data_headers(
-        struct law_http_req *request);
-
-/**
- * Get multipart/form-data body.
- */
-struct law_http_istream *law_http_req_multipart_form_data_body(
-        struct law_http_req *request);
-
-/* ISTREAM SECTION */
+struct pgc_stk *law_http_sreq_heap(
+        struct law_http_sreq *request);
 
 /**
- * Get a view of the input_stream's available bytes.
+ * Read the server-side request's message head.
+ * @return 
+ * LAW_ERR_TRY_AGAIN - 
+ * LAW_ERR_BUFFER_LIMIT - 
+ * LAW_ERR_UNEXPECTED_EOF - 
+ * LAW_ERR_SOCKET_IO - 
+ * LAW_ERR_MALFORMED_MESSAGE - 
+ * LAW_ERR_METHOD_NOT_ALLOWED - 
+ * LAW_ERR_UNSUPPORTED_VERSION - 
+ * SEL_ERR_OK 
  */
-struct pgc_buf *law_http_istream_view(
-        struct pgc_buf *buffer,
-        struct law_http_istream *input_stream);
+sel_err_t law_http_sreq_read_head(
+        struct law_http_sreq *request,
+        enum law_http_method *method,
+        enum law_http_version *version,
+        struct law_uri *target,
+        struct law_http_hdrs **headers);
+
+/** 
+ * Read data into the request's input buffer.
+ */
+ssize_t law_http_sreq_read_data(
+        struct law_http_sreq *request);
 
 /**
- * Flush n-bytes of stream data.
+ * Write the server-side request's response head.
+ * @param request The server-side request.
  */
-sel_err_t law_http_istream_flush(
-        struct law_http_istream *input_stream,
-        const size_t nbytes);
-
-/* RESPONSE SECTION */
-
-/** Get status code description. */
-const char *law_http_res_codestr(const int code);
+sel_err_t law_http_sreq_write_head(
+        struct law_http_sreq *request,
+        const int status,
+        const size_t header_count,
+        const char *headers[][2]);
 
 /**
- * Set response status code.
+ * Write data from the output buffer.
  */
-sel_err_t law_http_res_status(
-        struct law_http_res *response);
+ssize_t law_http_sreq_write_data(
+        struct law_http_sreq *request);
 
 /**
- * Include the header in the response.
+ * Done writing response body.
  */
-sel_err_t law_http_res_header(
-        struct law_http_res *response,
-        const char *name,
-        const char *value);
+sel_err_t law_http_sreq_done(
+        struct law_http_sreq *request);
+
+/* CLIENT REQUEST SECTION */
 
 /**
- * Get a stream for the response's body.
+ * Create a new client-side request.
  */
-struct law_http_ostream *law_http_res_body(
-        struct law_http_res *response);
+struct law_http_creq *law_http_creq_create(
+        struct law_http_creq_cfg *config);
 
 /**
- * Get a view of the output_stream's available bytes.
+ * Destroy the client-side request.
  */
-struct pgc_buf *law_http_ostream_view(
-        struct pgc_buf *buffer,
-        struct law_http_ostream *output_stream);
+void law_http_creq_destroy(
+        struct law_http_creq *request);
 
 /**
- * Flush n-bytes of stream data.
+ * Get the client-side request's output buffer
  */
-sel_err_t law_http_ostream_flush(
-        struct law_http_ostream *output_stream,
-        const size_t nbytes);
+struct pgc_buf *law_http_creq_out(
+        struct law_http_creq *request);
+
+/**
+ * Get the client-side request's input buffer.
+ */
+struct pgc_buf *law_http_creq_in(
+        struct law_http_creq *request);
+
+/**
+ * Get the client-side request's heap.
+ */
+struct pgc_stk *law_http_creq_heap(
+        struct law_http_creq *request);
+
+/**
+ * Establish a network connection with an HTTP service.
+ */
+sel_err_t law_http_creq_open(
+        struct law_http_creq *request, 
+        const struct sockaddr *address, 
+        socklen_t address_length);
+
+/**
+ * Write the client-side request's head.
+ */
+sel_err_t law_http_creq_write_head(
+        struct law_http_creq *request,
+        enum law_http_method request_method,
+        const char *request_target,
+        const size_t header_count,
+        const char *headers[][2]);
+
+/**
+ * Write data from the output buffer.
+ */
+ssize_t law_http_creq_write_data(
+        struct law_http_creq *request);
+
+/**
+ * Read the client-side request's response head.
+ */
+sel_err_t law_http_creq_read_head(
+        struct law_http_creq *request,
+        const int status,
+        struct law_http_hdrs **headers);
+
+/**
+ * Read bytes into the input buffer.
+ */
+ssize_t law_http_creq_read_data(
+        struct law_http_creq *request);
+
+/**
+ * Finish the client-side request.
+ */
+sel_err_t law_http_creq_done(
+        struct law_http_creq *request);
+
+/** 
+ * Get status code description. 
+ */
+const char *law_http_status_str(
+        const int status_code);
 
 /** 
  * Create a new HTTP state. 
  */
-struct law_http *law_http_create(
-        struct law_http_cfg *configuration);
+struct law_http_sctx *law_http_sctx_create(
+        struct law_http_sctx_cfg *configuration);
 
 /** 
  * Destroy HTTP state. 
  */
-void law_http_destroy(
-        struct law_http *http);
+void law_http_sctx_destroy(
+        struct law_http_sctx *http);
 
 /**
- * Entry function for HTTP/S functionality.
+ * Get the context's error log.
+ */
+FILE *law_http_sctx_error_log(
+        struct law_http_sctx *context);
+
+/**
+ * Get the context's access log.
+ */
+FILE *law_http_sctx_access_log(
+        struct law_http_sctx *context);
+
+/**
+ * Entry function for HTTP functionality.
  */
 sel_err_t law_http_accept(
         struct law_srv *server,
         int socket,
         void *state);
+
+/**
+ * Basic failure handler.
+ */
+sel_err_t law_http_onfail(
+        struct law_srv *server,
+        struct law_http_sctx *context,
+        struct law_http_sreq *request,
+        const int status,
+        sel_err_t error,
+        const char *file,
+        const char *func,
+        const int line);
 
 /* PARSER SECTION */
 

@@ -52,11 +52,11 @@ int main(int argc, char ** argv)
         cfg.uid = 1000;
         cfg.guardlen = 0x1000;
         cfg.stacklen = 0x100000;
-        cfg.protocol = LAW_SRV_TCP;
+        cfg.prot = LAW_SRV_TCP;
         cfg.timeout = 5000;
         cfg.port = 80;
         cfg.maxconns = 10;
-        cfg.loop = looper;
+        cfg.tick = looper;
         cfg.accept = accepter;
 
         struct law_srv *srv = law_srv_create(&cfg);
