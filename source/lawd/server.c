@@ -23,6 +23,8 @@ struct law_srv_conn {                           /** Network Connection */
         int socket;                             /** Socket Descriptor */
         struct law_cor *callee;                 /** Coroutine Environment */
         struct law_smem *stack;                 /** Coroutine Stack */
+        law_srv_call_t callback;                /** Coroutine callback */
+        void *state;                            /** Coroutine user-state */
 };
 
 struct law_srv_pfds {
@@ -166,13 +168,17 @@ struct law_srv_conn ** law_srv_conns_array(struct law_srv_conns *cs)
 struct law_srv_conn *law_srv_conn_create(
         const int socket,
         const size_t stacklen,
-        const size_t guardlen)
+        const size_t guardlen,
+        law_srv_call_t callback,
+        void *state)
 {
         struct law_srv_conn *conn = malloc(sizeof(struct law_srv_conn));
         conn->callee = law_cor_create();
         conn->stack = law_smem_create(stacklen, guardlen);
         conn->mode = LAW_SRV_READY;
         conn->socket = socket;
+        conn->callback = callback;
+        conn->state = state;
         return conn;
 }
 
@@ -232,22 +238,19 @@ struct pollfd *law_srv_lease(struct law_srv *s)
         return law_srv_pfds_take(s->pfds[0]);
 }
 
-int law_srv_poll(
-        struct law_srv *server, 
+sel_err_t law_srv_spawn(
+        struct law_srv *srv,
+        law_srv_call_t callback,
         const int socket,
-        const int events)
+        void *state)
 {
-        /* Set up polling descriptor. */
-        struct pollfd *pfd = law_srv_lease(server);
-        pfd->fd = socket;
-        pfd->events = events;
-        pfd->revents = 0;
-
-        /* Yield back to the scheduler. */
-        law_srv_yield(server);
-
-        /* Return any triggered events. */
-        return pfd->revents;
+        *law_srv_conns_take(srv->conns[0]) = law_srv_conn_create(
+                socket,
+                srv->cfg->stacklen, 
+                srv->cfg->guardlen,
+                callback,
+                state);
+        return SEL_ERR_OK;
 }
 
 static sel_err_t law_srv_listen(struct law_srv *s)
@@ -357,8 +360,9 @@ static sel_err_t law_srv_trampoline(
         struct law_cor *callee,
         void *state)
 {
-        struct law_srv *s = state;
-        return s->cfg->accept(s, s->target->socket, s->cfg->state);
+        struct law_srv *server = state;
+        struct law_srv_conn *conn = server->target;
+        return conn->callback(server, conn->socket, conn->state);
 }
 
 static sel_err_t law_srv_dispatch(struct law_srv *srv)
@@ -397,19 +401,17 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
                         default: SEL_ABORT();
                 }
                 switch(err) {
-                        case SEL_ERR_SYS:
-                                /** Accept finished. */
-                                // conn->mode = LAW_SRV_CLOSED;
+                        case SEL_ERR_OK:
+                                /* Accept finished. */
                                 law_srv_conn_destroy(conn);
                                 break;
                         case LAW_ERR_TRY_AGAIN:
-                                /** Accept is suspended until later. */
+                                /* Accept is suspended until later. */
                                 conn->mode = LAW_SRV_SUSPENDED;
                                 *law_srv_conns_take(srv->conns[0]) = conn;
                                 break;
                         default: 
-                                /** An error occurred. */
-                                // conn->mode = LAW_SRV_CLOSED;
+                                /* An error occurred. */
                                 law_srv_conn_destroy(conn);
                                 return err;
                 }
@@ -420,8 +422,11 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
 
 static sel_err_t law_srv_accept(struct law_srv *srv)
 {
-        while(srv->conns[0]->size < srv->cfg->maxconns) {
+        while(srv->conns[0]->size <= srv->cfg->maxconns) {
+
+                /* Accept new client connections. */
                 const int client = accept(srv->socket, NULL, NULL);
+
                 if(client < 0) {
                         if(errno == EAGAIN || errno == EWOULDBLOCK) {
                                 return SEL_ERR_OK;
@@ -429,16 +434,21 @@ static sel_err_t law_srv_accept(struct law_srv *srv)
                                 SEL_THROW(SEL_ERR_SYS);
                         }
                 }
+
+                /* Set socket to non-blocking mode. */
                 const int flags = fcntl(client, F_GETFL);
                 if(flags < 0) {
                         SEL_THROW(SEL_ERR_SYS);
                 } else if(fcntl(client, F_SETFL, O_NONBLOCK | flags) < 0) {
                         SEL_THROW(SEL_ERR_SYS);
                 }
-                *law_srv_conns_take(srv->conns[0]) = law_srv_conn_create(
-                        client,
-                        srv->cfg->stacklen, 
-                        srv->cfg->guardlen);
+
+                /* Spawn a new coroutine. */
+                SEL_TRY_QUIETLY(law_srv_spawn(
+                        srv, 
+                        srv->cfg->accept, 
+                        client, 
+                        srv));
         }
         return SEL_ERR_OK;
 }

@@ -12,7 +12,8 @@ enum law_err_type {
         LAW_ERR_SOCKET_IO               = -104, /** Socket IO Error */
         LAW_ERR_MALFORMED_MESSAGE       = -105, /** Malformed Message */
         LAW_ERR_METHOD_NOT_ALLOWED      = -106, /** Method Not Allowed */
-        LAW_ERR_UNSUPPORTED_VERSION     = -107  /** Unsupported Version */
+        LAW_ERR_UNSUPPORTED_VERSION     = -107, /** Unsupported Version */
+        LAW_ERR_HEAP_EXHAUSTED          = -108  /** Heap out of memory */
 };
 
 void law_err_init();

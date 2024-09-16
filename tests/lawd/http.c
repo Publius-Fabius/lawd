@@ -97,13 +97,13 @@ void test_request_target()
         struct pgc_ast *value;
 
         SEL_TEST(test_lang_parse(p, "*", &list) == PGC_ERR_OK);
-        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HTTP_AUTHORITY_FORM);
+        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HT_AUTHORITY_FORM);
         value = pgc_ast_tolst(list->val)->val;
         SEL_TEST(pgc_syn_typeof(value) == LAW_URI_HOST);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "*"));
 
         SEL_TEST(test_lang_parse(p, "/a/bc?query", &list) == PGC_ERR_OK);
-        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HTTP_ORIGIN_FORM);
+        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HT_ORIGIN_FORM);
         list = pgc_ast_tolst(list->val);
         SEL_TEST(pgc_ast_len(list) == 2);
         value = list->val;
@@ -116,7 +116,7 @@ void test_request_target()
         SEL_TEST(test_lang_parse(p, 
                 "http://a:80/bc?a=1&b=2", 
                 &list) == PGC_ERR_OK);
-        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HTTP_ABSOLUTE_FORM);
+        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HT_ABSOLUTE_FORM);
         list = pgc_ast_tolst(list->val);
         SEL_TEST(pgc_ast_len(list) == 5);
         value = pgc_ast_at(list, 0)->val;
@@ -154,14 +154,14 @@ void test_start_line()
 
         SEL_TEST(pgc_ast_len(list) == 3);
         value = pgc_ast_at(list, 0)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_METHOD);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_METHOD);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "REQUEST"));
 
         value = pgc_ast_at(list, 1)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_ORIGIN_FORM);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_ORIGIN_FORM);
      
         value = pgc_ast_at(list, 2)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_VERSION);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_VERSION);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "HTTP/1.1"));
 }
 
@@ -186,27 +186,27 @@ void test_HTTP_message_head()
 
         SEL_TEST(pgc_ast_len(list) == 5);
         value = pgc_ast_at(list, 0)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_METHOD);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_METHOD);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "REQUEST"));
 
         value = pgc_ast_at(list, 1)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_ORIGIN_FORM);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_ORIGIN_FORM);
      
         value = pgc_ast_at(list, 2)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_VERSION);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_VERSION);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "HTTP/1.1"));
 
         value = pgc_ast_at(list, 3)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_FIELD);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD);
         value = pgc_ast_tolst(value)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_FIELD_NAME);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD_NAME);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "Content-Length"));
         value = pgc_ast_tolst(pgc_ast_at(list, 3)->val)->nxt->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_FIELD_VALUE);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD_VALUE);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "256"));
 
         value = pgc_ast_at(list, 4)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HTTP_FIELD);
+        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD);
 }
 
 int main(int argc, char **argv)

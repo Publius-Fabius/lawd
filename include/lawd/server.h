@@ -127,6 +127,7 @@ struct pollfd *law_srv_lease(
  * @param callback The callback to run within a new coroutine.
  * @param socket The socket to attach to this coroutine.
  * @param state The user defined state for the associated callback.
+ * @return An error code.
  */
 sel_err_t law_srv_spawn(
         struct law_srv *server,
