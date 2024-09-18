@@ -405,7 +405,7 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
                                 /* Accept finished. */
                                 law_srv_conn_destroy(conn);
                                 break;
-                        case LAW_ERR_TRY_AGAIN:
+                        case LAW_ERR_AGAIN:
                                 /* Accept is suspended until later. */
                                 conn->mode = LAW_SRV_SUSPENDED;
                                 *law_srv_conns_take(srv->conns[0]) = conn;
@@ -486,7 +486,7 @@ sel_err_t law_srv_start(struct law_srv *server)
                 server->mode = LAW_SRV_RUNNING;
                 return law_srv_loop(server);
         } else {
-                return LAW_ERR_BAD_MODE;
+                return LAW_ERR_MODE;
         }
 }
 

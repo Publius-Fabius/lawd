@@ -103,12 +103,19 @@ struct law_ht_hdrs_i *law_ht_hdrs_elems(
         struct law_ht_hdrs *headers);
 
 /**
- * Get the next header field <name, value> pair.
+ * Get the next header field <name, value> pair.  A NULL return value indicates
+ * the iterator's resources were freed and no cleanup is necessary.
  */
 struct law_ht_hdrs_i *law_ht_hdrs_i_next(
         struct law_ht_hdrs_i *iterator,
         const char **name,
         const char **value);
+
+/**
+ * Discard a non-zero iterator.
+ */
+void law_ht_hdrs_i_free(
+        struct law_ht_hdrs_i *iterator);
 
 /** 
  * Get the request's input buffer.
@@ -137,14 +144,14 @@ struct pgc_stk *law_ht_sreq_heap(
 /**
  * Read the server-side request's message head.
  * @return 
- * LAW_ERR_TRY_AGAIN - 
- * LAW_ERR_BUFFER_LIMIT - 
- * LAW_ERR_UNEXPECTED_EOF - 
- * LAW_ERR_SOCKET_IO - 
- * LAW_ERR_MALFORMED_MESSAGE - 
- * LAW_ERR_METHOD_NOT_ALLOWED - 
- * LAW_ERR_UNSUPPORTED_VERSION - 
- * SEL_ERR_OK 
+ * LAW_ERR_AGAIN - Try again
+ * LAW_ERR_OOB - Buffer is full
+ * LAW_ERR_EOF - End of file encountered
+ * LAW_ERR_SYS - Socket IO
+ * LAW_ERR_SYN - Message Syntax
+ * LAW_ERR_METH - Method not allowed
+ * LAW_ERR_VERS - Version not supported
+ * SEL_ERR_OK - All ok.
  */
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
@@ -172,7 +179,7 @@ sel_err_t law_ht_sreq_write_head(
 /**
  * Write data from the output buffer.
  */
-ssize_t law_ht_sreq_write_data(
+sel_err_t law_ht_sreq_write_data(
         struct law_ht_sreq *request);
 
 /**
@@ -181,7 +188,7 @@ ssize_t law_ht_sreq_write_data(
 sel_err_t law_ht_sreq_done(
         struct law_ht_sreq *request);
 
-/* CLIENT REQUEST SECTION */
+/* CLIENT REQUEST SECTION ****************************************************/
 
 /**
  * Create a new client-side request.
@@ -204,27 +211,27 @@ struct pgc_buf *law_ht_creq_out(
 /**
  * Get the client-side request's input buffer.
  */
-struct pgc_buf *law_http_creq_in(
+struct pgc_buf *law_ht_creq_in(
         struct law_ht_creq *request);
 
 /**
  * Get the client-side request's heap.
  */
-struct pgc_stk *law_http_creq_heap(
+struct pgc_stk *law_ht_creq_heap(
         struct law_ht_creq *request);
 
 /**
  * Establish a network connection with an HTTP service.
  */
-sel_err_t law_http_creq_open(
+sel_err_t law_ht_creq_connect(
         struct law_ht_creq *request, 
-        const struct sockaddr *address, 
-        socklen_t address_length);
+        const char *host,
+        const char *service);
 
 /**
  * Write the client-side request's head.
  */
-sel_err_t law_http_creq_write_head(
+sel_err_t law_ht_creq_write_head(
         struct law_ht_creq *request,
         enum law_ht_method request_method,
         const char *request_target,
@@ -234,51 +241,52 @@ sel_err_t law_http_creq_write_head(
 /**
  * Write data from the output buffer.
  */
-ssize_t law_http_creq_write_data(
+ssize_t law_ht_creq_write_data(
         struct law_ht_creq *request);
 
 /**
  * Read the client-side request's response head.
  */
-sel_err_t law_http_creq_read_head(
+sel_err_t law_ht_creq_read_head(
         struct law_ht_creq *request,
-        const int status,
+        enum law_ht_version *version,
+        int *status,
         struct law_ht_hdrs **headers);
 
 /**
  * Read bytes into the input buffer.
  */
-ssize_t law_http_creq_read_data(
+ssize_t law_ht_creq_read_data(
         struct law_ht_creq *request);
 
 /**
  * Finish the client-side request.
  */
-sel_err_t law_http_creq_done(
+sel_err_t law_ht_creq_done(
         struct law_ht_creq *request);
 
 /** 
  * Get status code description. 
  */
-const char *law_http_status_str(
+const char *law_ht_status_str(
         const int status_code);
 
 /** 
  * Create a new HTTP state. 
  */
-struct law_ht_sctx *law_http_sctx_create(
+struct law_ht_sctx *law_ht_sctx_create(
         struct law_ht_sctx_cfg *configuration);
 
 /** 
  * Destroy HTTP state. 
  */
-void law_http_sctx_destroy(
+void law_ht_sctx_destroy(
         struct law_ht_sctx *http);
 
 /**
  * Entry function for HTTP functionality.
  */
-sel_err_t law_http_accept(
+sel_err_t law_ht_accept(
         struct law_srv *server,
         int socket,
         void *state);
@@ -311,7 +319,7 @@ sel_err_t law_http_accept(
  * HTTP_name = "HTTP" ; HTTP
  * HTTP_version = HTTP_name "/" DIGIT "." DIGIT
  *
- * start_line = method SP request_target SP HTTP_version CRLF
+ * request_line = method SP request_target SP HTTP_version CRLF
  * 
  * field_name = token
  * 
@@ -321,7 +329,7 @@ sel_err_t law_http_accept(
  * 
  * HTAB = '\t' 
  * 
- * OWS = *( SP / HTAB )
+ * OWS = *( SP | HTAB )
  * 
  * field_vchar = VCHAR
  * 
@@ -330,6 +338,16 @@ sel_err_t law_http_accept(
  * field_value = *( field_content )
  * 
  * header_field = field_name ":" OWS field_value OWS
+ * 
+ * status-code = 3DIGIT 
+ * 
+ * reason-phrase = *( HTAB | SP | VCHAR )
+ * 
+ * status-line = HTTP-version SP status-code SP reason-phrase CRLF
+ *
+ * start-line = status-line | request-line
+ * 
+ * message_body = *OCTET
  * 
  * HTTP_message = start_line
  *              *( header_field CRLF )
@@ -405,7 +423,9 @@ struct pgc_par *law_http_parsers_field_value(struct law_http_parsers *x);
 
 struct pgc_par *law_http_parsers_header_field(struct law_http_parsers *x);
 
-struct pgc_par *law_http_parsers_HTTP_message_head(struct law_http_parsers *x);
+struct pgc_par *law_http_parsers_request_head(struct law_http_parsers *x);
+
+struct pgc_par *law_http_parsers_response_head(struct law_http_parsers *x);
 
 struct pgc_par *law_http_parsers_cap_absolute_URI(struct law_http_parsers *x);
 
