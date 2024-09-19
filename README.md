@@ -1,5 +1,7 @@
 # LAWD - Lightweight Asynchronous Web Development
 
+> A Promise is just a continuation, and a continuation is just a coroutine.
+
 A toolkit for developing lightweight web applications.  This package uses libpgenc (also hosted on this account) for expression parsing. 
 
 - lawd/error.h - Error codes and utility functions.
