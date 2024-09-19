@@ -51,7 +51,9 @@ bin/test_server : tests/lawd/server.c \
 	$(CC) $(CFLAGS) -o $@ $^
 grind_test_server : bin/test_server
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
-bin/test_server_echo: tests/lawd/server_echo.c \
+
+# echo server 
+bin/echo: tests/lawd/echo.c \
 	build/lawd/error.o \
 	build/lawd/server.o \
 	build/lawd/cor_x86_64.o \
@@ -60,16 +62,6 @@ bin/test_server_echo: tests/lawd/server_echo.c \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 
-# util.h
-build/lawd/util.o : source/lawd/util.c include/lawd/util.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-bin/test_util : tests/lawd/util.c \
-	build/lawd/util.o \
-	lib/libselc.a \
-	lib/libpgenc.a 
-	$(CC) $(CFLAGS) -o $@ $^
-grind_test_util : bin/test_util
-	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # uri.h 
 tmp/lawd/uri_parsers.c : grammar/uri.g 
@@ -87,7 +79,7 @@ bin/test_uri : tests/lawd/uri.c \
 
 # http.h
 tmp/lawd/http_parsers.c : grammar/http.g 
-	bin/pgenc -g $< -s $@ -d law_http_parsers
+	bin/pgenc -g $< -s $@ -d law_ht_parsers
 build/lawd/http_parsers.o : tmp/lawd/http_parsers.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 build/lawd/http.o : source/lawd/http.c 
@@ -102,6 +94,27 @@ bin/test_http: tests/lawd/http.c \
 	lib/libpgenc.a
 	$(CC) $(CFLAGS) -o $@ $^
 
+lib/liblawd.a : \
+	build/lawd/error.o \
+	build/lawd/safemem.o \
+	build/lawd/cor_x86_64.o \
+	build/lawd/cor_x86_64s.o \
+	build/lawd/server.o \
+	build/lawd/uri_parsers.o \
+	build/lawd/uri.o \
+	build/lawd/http_parsers.o \
+	build/lawd/http.o 
+	ar -crs $@ $^
+
+# hello world http server
+bin/hello : tests/lawd/hello.c \
+	lib/liblawd.a \
+	lib/libpgenc.a \
+	lib/libselc.a 
+	$(CC) $(CFLAGS) -o $@ $^
+
+
+
 # test suite
 suite: \
 	grind_test_error \
@@ -115,4 +128,7 @@ clean:
 	rm bin/test_* || true 
 	rm tmp/lawd/uri_parsers.c || true 
 	rm tmp/lawd/http_parsers.c || true
+	rm lib/liblawd.a || true
+	rm bin/echo || true 
+	rm bin/hello || true
 

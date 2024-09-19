@@ -32,13 +32,13 @@ typedef sel_err_t (*law_srv_tick_t)(
 
 /** Server Configuration */
 struct law_srv_cfg {                            
-        enum law_srv_prot prot;                 /** Socket Protocol. */
+        enum law_srv_prot protocol;             /** Socket Protocol. */
         uint16_t port;                          /** Socket Port */
         int backlog;                            /** Accept Backlog */
         int maxconns;                           /** Max Connections */
         int timeout;                            /** Polling timeout */
-        size_t stacklen;                        /** Coroutine Stack */
-        size_t guardlen;                        /** Stack Guards */
+        size_t stack_length;                        /** Coroutine Stack */
+        size_t stack_guard;                        /** Stack Guards */
         uid_t uid;                              /** System User */
         gid_t gid;                              /** System Group */
         law_srv_call_t accept;                  /** Accept Callback */

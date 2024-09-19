@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdio.h>
 
 enum law_srv_mode {
         LAW_SRV_READY           = 0,            /** Ready */
@@ -233,6 +234,14 @@ void law_srv_conns_swap(struct law_srv *srv)
         srv->conns[1] = tmp;
 }
 
+sel_err_t law_srv_yield(struct law_srv *server)
+{
+        return law_cor_yield(
+                server->caller, 
+                server->target->callee, 
+                LAW_ERR_AGAIN);
+}
+
 struct pollfd *law_srv_lease(struct law_srv *s)
 {
         return law_srv_pfds_take(s->pfds[0]);
@@ -246,8 +255,8 @@ sel_err_t law_srv_spawn(
 {
         *law_srv_conns_take(srv->conns[0]) = law_srv_conn_create(
                 socket,
-                srv->cfg->stacklen, 
-                srv->cfg->guardlen,
+                srv->cfg->stack_length, 
+                srv->cfg->stack_guard,
                 callback,
                 state);
         return SEL_ERR_OK;
@@ -262,7 +271,7 @@ static sel_err_t law_srv_listen(struct law_srv *s)
         struct sockaddr_in *in;
         struct sockaddr_in6 *in6;
 
-        switch(s->cfg->prot) {
+        switch(s->cfg->protocol) {
 
                 /* TCP over IPv4 */
                 case LAW_SRV_TCP: 
@@ -396,7 +405,7 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
                                 err = law_cor_resume(
                                         srv->caller,
                                         conn->callee,
-                                        0);
+                                        LAW_ERR_OK);
                                 break;
                         default: SEL_ABORT();
                 }
@@ -448,7 +457,7 @@ static sel_err_t law_srv_accept(struct law_srv *srv)
                         srv, 
                         srv->cfg->accept, 
                         client, 
-                        srv));
+                        srv->cfg->state));
         }
         return SEL_ERR_OK;
 }

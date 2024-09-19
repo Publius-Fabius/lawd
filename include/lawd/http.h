@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 
 /** HTTP Method */
-enum law_ht_method {
+enum law_ht_meth {
         LAW_HT_GET,                     /** Get Method */
         LAW_HT_POST,                    /** Post Method */
         LAW_HT_HEAD,                    /** Head Method */
@@ -20,13 +20,14 @@ enum law_ht_method {
 };
 
 /** HTTP Version */
-enum law_ht_version {
+enum law_ht_vers {
         LAW_HT_1_1,                     /** Version 1.1 */
         LAW_HT_2                        /** Version 2 */
 };
 
 /** HTTP Message Tags */
 enum law_ht_tag {
+        LAW_HT_STATUS,                  /** Status */
         LAW_HT_METHOD,                  /** Method */
         LAW_HT_VERSION,                 /** Version */
         LAW_HT_FIELD,                   /** Header Field */
@@ -60,7 +61,6 @@ struct law_ht_creq;
  */
 typedef sel_err_t (*law_ht_handler_t)(
         struct law_srv *server,
-        struct law_ht_sctx *context,
         struct law_ht_sreq *request);
 
 /** HTTP Server Context Configuration */
@@ -99,8 +99,7 @@ const char *law_ht_hdrs_get(
  * @param headers A collection of HTTP message headers.
  * @return The header collection iterator.
  */
-struct law_ht_hdrs_i *law_ht_hdrs_elems(
-        struct law_ht_hdrs *headers);
+struct law_ht_hdrs_i *law_ht_hdrs_elems(struct law_ht_hdrs *headers);
 
 /**
  * Get the next header field <name, value> pair.  A NULL return value indicates
@@ -114,32 +113,28 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
 /**
  * Discard a non-zero iterator.
  */
-void law_ht_hdrs_i_free(
-        struct law_ht_hdrs_i *iterator);
+void law_ht_hdrs_i_free(struct law_ht_hdrs_i *iterator);
 
 /** 
  * Get the request's input buffer.
  * @param request The server-side request.
  * @return The request's input buffer.
  */
-struct pgc_buf *law_ht_sreq_in(
-        struct law_ht_sreq *request);
+struct pgc_buf *law_ht_sreq_in(struct law_ht_sreq *request);
 
 /** 
  * Get the request's output buffer.
  * @param request The server-side request.
  * @return The request's output buffer.
  */
-struct pgc_buf *law_ht_sreq_out(
-        struct law_ht_sreq *request);
+struct pgc_buf *law_ht_sreq_out(struct law_ht_sreq *request);
 
 /** 
  * Get the request's heap.
  * @param request The server-side request.
  * @return The request's heap.
  */
-struct pgc_stk *law_ht_sreq_heap(
-        struct law_ht_sreq *request);
+struct pgc_stk *law_ht_sreq_heap(struct law_ht_sreq *request);
 
 /**
  * Read the server-side request's message head.
@@ -155,16 +150,15 @@ struct pgc_stk *law_ht_sreq_heap(
  */
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
-        enum law_ht_method *method,
-        enum law_ht_version *version,
+        enum law_ht_meth *method,
+        enum law_ht_vers *version,
         struct law_uri *target,
         struct law_ht_hdrs **headers);
 
 /** 
  * Read data into the request's input buffer.
  */
-sel_err_t law_ht_sreq_read_data(
-        struct law_ht_sreq *request);
+sel_err_t law_ht_sreq_read_data(struct law_ht_sreq *request);
 
 /**
  * Write the server-side request's response head.
@@ -179,46 +173,39 @@ sel_err_t law_ht_sreq_write_head(
 /**
  * Write data from the output buffer.
  */
-sel_err_t law_ht_sreq_write_data(
-        struct law_ht_sreq *request);
+sel_err_t law_ht_sreq_write_data(struct law_ht_sreq *request);
 
 /**
  * Done writing response body.
  */
-sel_err_t law_ht_sreq_done(
-        struct law_ht_sreq *request);
+sel_err_t law_ht_sreq_done(struct law_ht_sreq *request);
 
 /* CLIENT REQUEST SECTION ****************************************************/
 
 /**
  * Create a new client-side request.
  */
-struct law_ht_creq *law_ht_creq_create(
-        struct law_ht_creq_cfg *config);
+struct law_ht_creq *law_ht_creq_create(struct law_ht_creq_cfg *config);
 
 /**
  * Destroy the client-side request.
  */
-void law_ht_creq_destroy(
-        struct law_ht_creq *request);
+void law_ht_creq_destroy(struct law_ht_creq *request);
 
 /**
  * Get the client-side request's output buffer
  */
-struct pgc_buf *law_ht_creq_out(
-        struct law_ht_creq *request);
+struct pgc_buf *law_ht_creq_out(struct law_ht_creq *request);
 
 /**
  * Get the client-side request's input buffer.
  */
-struct pgc_buf *law_ht_creq_in(
-        struct law_ht_creq *request);
+struct pgc_buf *law_ht_creq_in(struct law_ht_creq *request);
 
 /**
  * Get the client-side request's heap.
  */
-struct pgc_stk *law_ht_creq_heap(
-        struct law_ht_creq *request);
+struct pgc_stk *law_ht_creq_heap(struct law_ht_creq *request);
 
 /**
  * Establish a network connection with an HTTP service.
@@ -233,7 +220,7 @@ sel_err_t law_ht_creq_connect(
  */
 sel_err_t law_ht_creq_write_head(
         struct law_ht_creq *request,
-        enum law_ht_method request_method,
+        enum law_ht_meth request_method,
         const char *request_target,
         const size_t header_count,
         const char *headers[][2]);
@@ -241,47 +228,51 @@ sel_err_t law_ht_creq_write_head(
 /**
  * Write data from the output buffer.
  */
-ssize_t law_ht_creq_write_data(
-        struct law_ht_creq *request);
+ssize_t law_ht_creq_write_data(struct law_ht_creq *request);
 
 /**
  * Read the client-side request's response head.
  */
 sel_err_t law_ht_creq_read_head(
         struct law_ht_creq *request,
-        enum law_ht_version *version,
+        enum law_ht_vers *version,
         int *status,
         struct law_ht_hdrs **headers);
 
 /**
  * Read bytes into the input buffer.
  */
-ssize_t law_ht_creq_read_data(
-        struct law_ht_creq *request);
+ssize_t law_ht_creq_read_data(struct law_ht_creq *request);
 
 /**
  * Finish the client-side request.
  */
-sel_err_t law_ht_creq_done(
-        struct law_ht_creq *request);
+sel_err_t law_ht_creq_done(struct law_ht_creq *request);
 
 /** 
  * Get status code description. 
  */
-const char *law_ht_status_str(
-        const int status_code);
+const char *law_ht_status_str(const int status_code);
+
+/** 
+ * Get string for method
+ */
+const char *law_ht_meth_str(enum law_ht_meth method);
+
+/**
+ * Get string for version
+ */
+const char *law_ht_vers_str(enum law_ht_vers version);
 
 /** 
  * Create a new HTTP state. 
  */
-struct law_ht_sctx *law_ht_sctx_create(
-        struct law_ht_sctx_cfg *configuration);
+struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *conf);
 
 /** 
  * Destroy HTTP state. 
  */
-void law_ht_sctx_destroy(
-        struct law_ht_sctx *http);
+void law_ht_sctx_destroy(struct law_ht_sctx *http);
 
 /**
  * Entry function for HTTP functionality.
@@ -355,82 +346,78 @@ sel_err_t law_ht_accept(
  *              [ message_body ]
  */
 
-enum pgc_err law_http_cap_method(
+enum pgc_err law_ht_cap_status(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_version(
+enum pgc_err law_ht_cap_method(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_field_name(
+enum pgc_err law_ht_cap_version(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_field_value(
+enum pgc_err law_ht_cap_field_name(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_field(
+enum pgc_err law_ht_cap_field_value(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_origin_form(
+enum pgc_err law_ht_cap_field(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_absolute_form(
+enum pgc_err law_ht_cap_origin_form(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_authority_form(
+enum pgc_err law_ht_cap_absolute_form(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
-enum pgc_err law_http_cap_asterisk_form(
+enum pgc_err law_ht_cap_authority_form(
         struct pgc_buf *buffer,
         void *state,
         struct pgc_par *arg);
 
 /** Export and Link */
-struct law_http_parsers *law_http_parsers_link();
+
+struct law_ht_parsers *export_law_ht_parsers();
+
+struct law_ht_parsers *law_ht_parsers_link();
 
 /* Auto-Generated Parsers */
 
-struct law_http_parsers;
+struct law_ht_parsers;
 
-struct law_http_parsers *export_law_http_parsers();
-
-struct pgc_par *law_http_parsers_tchar(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_token(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_request_target(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_start_line(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_field_content(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_field_value(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_header_field(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_request_head(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_response_head(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_cap_absolute_URI(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_cap_origin_URI(struct law_http_parsers *x);
-
-struct pgc_par *law_http_parsers_cap_authority(struct law_http_parsers *x);
+struct pgc_par *law_ht_parsers_tchar(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_token(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_cap_absolute_URI(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_cap_origin_URI(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_cap_authority(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_request_target(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_HTTP_name(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_HTTP_version(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_request_line(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_field_content(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_field_value(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_header_field(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_cap_field(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_status_code(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_reason_phrase(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_status_line(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_request_head(struct law_ht_parsers *x);
+struct pgc_par *law_ht_parsers_response_head(struct law_ht_parsers *x);
 
 #endif

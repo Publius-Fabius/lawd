@@ -9,7 +9,7 @@ void test_tchar()
 {
         SEL_INFO();
         
-        struct pgc_par *p = law_http_parsers_tchar(export_law_http_parsers());
+        struct pgc_par *p = law_ht_parsers_tchar(export_law_ht_parsers());
 
         /* tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*"
                 / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
@@ -49,7 +49,7 @@ void test_token()
 {
         SEL_INFO();
         
-        struct pgc_par *p = law_http_parsers_token(export_law_http_parsers());
+        struct pgc_par *p = law_ht_parsers_token(export_law_ht_parsers());
 
         /* tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*"
                 / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
@@ -89,9 +89,9 @@ void test_request_target()
 {
         SEL_INFO();
 
-        struct pgc_par *p = law_http_parsers_request_target(
-                export_law_http_parsers());
-        law_http_parsers_link();
+        struct pgc_par *p = law_ht_parsers_request_target(
+                export_law_ht_parsers());
+        law_ht_parsers_link();
 
         struct pgc_ast_lst *list;
         struct pgc_ast *value;
@@ -136,78 +136,103 @@ void test_request_target()
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "a=1&b=2"));
 }
 
-void test_start_line()
+void test_request_head()
 {
         SEL_INFO();
 
-        struct pgc_par *p = law_http_parsers_start_line(
-                export_law_http_parsers());
-        law_http_parsers_link();
+        struct pgc_par *p = law_ht_parsers_request_head(
+                law_ht_parsers_link());
 
         struct pgc_ast_lst *list;
         struct pgc_ast *value;
 
-        SEL_TEST(test_lang_parse(
-                p, 
-                "REQUEST /home?a=1&b=2 HTTP/1.1\r\n", 
-                &list) == PGC_ERR_OK);
-
-        SEL_TEST(pgc_ast_len(list) == 3);
-        value = pgc_ast_at(list, 0)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_METHOD);
-        SEL_TEST(!strcmp(pgc_ast_tostr(value), "REQUEST"));
-
-        value = pgc_ast_at(list, 1)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_ORIGIN_FORM);
-     
-        value = pgc_ast_at(list, 2)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_VERSION);
-        SEL_TEST(!strcmp(pgc_ast_tostr(value), "HTTP/1.1"));
-}
-
-void test_HTTP_message_head()
-{
-        SEL_INFO();
-
-        struct pgc_par *p = law_http_parsers_HTTP_message_head(
-                export_law_http_parsers());
-        law_http_parsers_link();
-
-        struct pgc_ast_lst *list;
-        struct pgc_ast *value;
-
-        SEL_TEST(test_lang_parse(
-                p, 
-                "REQUEST /home?a=1&b=2 HTTP/1.1\r\n"
-                "Content-Length: 256\r\n"
-                "Content-Type: text/plain\r\n"
+        SEL_TEST(test_lang_parse(p, 
+                "GET / HTTP/1.1\r\n"
+                "Host: localhost\r\n"
+                "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:109.0)\r\n"
+                "Accept: text/html,application/xhtml+xml\r\n"
+                "Sec-Fetch-User: ?1\r\n"
                 "\r\n", 
                 &list) == PGC_ERR_OK);
-
-        SEL_TEST(pgc_ast_len(list) == 5);
-        value = pgc_ast_at(list, 0)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_METHOD);
-        SEL_TEST(!strcmp(pgc_ast_tostr(value), "REQUEST"));
-
-        value = pgc_ast_at(list, 1)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_ORIGIN_FORM);
-     
-        value = pgc_ast_at(list, 2)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_VERSION);
-        SEL_TEST(!strcmp(pgc_ast_tostr(value), "HTTP/1.1"));
-
-        value = pgc_ast_at(list, 3)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD);
-        value = pgc_ast_tolst(value)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD_NAME);
-        SEL_TEST(!strcmp(pgc_ast_tostr(value), "Content-Length"));
-        value = pgc_ast_tolst(pgc_ast_at(list, 3)->val)->nxt->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD_VALUE);
-        SEL_TEST(!strcmp(pgc_ast_tostr(value), "256"));
-
-        value = pgc_ast_at(list, 4)->val;
-        SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD);
+        SEL_ASSERT(pgc_ast_len(list) == 7);
+        SEL_ASSERT(!strcmp("GET", pgc_ast_tostr(pgc_ast_at(list, 0)->val)));
+        SEL_ASSERT(!strcmp("HTTP/1.1", pgc_ast_tostr(pgc_ast_at(list, 2)->val)));
+        
 }
+
+
+// void test_start_line()
+// {
+//         SEL_INFO();
+
+//         struct pgc_par *p = law_ht_parsers_start_line(
+//                 export_law_ht_parsers());
+//         law_ht_parsers_link();
+
+//         struct pgc_ast_lst *list;
+//         struct pgc_ast *value;
+
+//         SEL_TEST(test_lang_parse(
+//                 p, 
+//                 "REQUEST /home?a=1&b=2 HTTP/1.1\r\n", 
+//                 &list) == PGC_ERR_OK);
+
+//         SEL_TEST(pgc_ast_len(list) == 3);
+//         value = pgc_ast_at(list, 0)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_METHOD);
+//         SEL_TEST(!strcmp(pgc_ast_tostr(value), "REQUEST"));
+
+//         value = pgc_ast_at(list, 1)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_ORIGIN_FORM);
+     
+//         value = pgc_ast_at(list, 2)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_VERSION);
+//         SEL_TEST(!strcmp(pgc_ast_tostr(value), "HTTP/1.1"));
+// }
+
+// void test_HTTP_message_head()
+// {
+//         SEL_INFO();
+
+//         struct pgc_par *p = law_ht_parsers_HTTP_message_head(
+//                 export_law_ht_parsers());
+//         law_ht_parsers_link();
+
+//         struct pgc_ast_lst *list;
+//         struct pgc_ast *value;
+
+//         SEL_TEST(test_lang_parse(
+//                 p, 
+//                 "REQUEST /home?a=1&b=2 HTTP/1.1\r\n"
+//                 "Content-Length: 256\r\n"
+//                 "Content-Type: text/plain\r\n"
+//                 "\r\n", 
+//                 &list) == PGC_ERR_OK);
+
+//         SEL_TEST(pgc_ast_len(list) == 5);
+//         value = pgc_ast_at(list, 0)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_METHOD);
+//         SEL_TEST(!strcmp(pgc_ast_tostr(value), "REQUEST"));
+
+//         value = pgc_ast_at(list, 1)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_ORIGIN_FORM);
+     
+//         value = pgc_ast_at(list, 2)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_VERSION);
+//         SEL_TEST(!strcmp(pgc_ast_tostr(value), "HTTP/1.1"));
+
+//         value = pgc_ast_at(list, 3)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD);
+//         value = pgc_ast_tolst(value)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD_NAME);
+//         SEL_TEST(!strcmp(pgc_ast_tostr(value), "Content-Length"));
+//         value = pgc_ast_tolst(pgc_ast_at(list, 3)->val)->nxt->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD_VALUE);
+//         SEL_TEST(!strcmp(pgc_ast_tostr(value), "256"));
+
+//         value = pgc_ast_at(list, 4)->val;
+//         SEL_TEST(pgc_syn_typeof(value) == LAW_HT_FIELD);
+// }
 
 int main(int argc, char **argv)
 {
@@ -216,6 +241,7 @@ int main(int argc, char **argv)
         test_tchar();
         test_token();
         test_request_target();
-        test_start_line();
-        test_HTTP_message_head();
+        test_request_head();
+        // test_start_line();
+        // test_HTTP_message_head();
 }

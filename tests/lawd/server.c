@@ -151,9 +151,9 @@ void test_create()
         cfg.backlog = 10;
         cfg.gid = 1000;
         cfg.uid = 1000;
-        cfg.guardlen = 0x1000;
-        cfg.stacklen = 0x100000;
-        cfg.prot = LAW_SRV_TCP;
+        cfg.stack_guard = 0x1000;
+        cfg.stack_length = 0x100000;
+        cfg.protocol = LAW_SRV_TCP;
         cfg.timeout = 5000;
         cfg.port = 80;
         cfg.maxconns = 10;

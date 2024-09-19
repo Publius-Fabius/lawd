@@ -40,7 +40,7 @@ dec cap_absolute_URI;
 dec cap_origin_URI;
 dec cap_authority;
 
-# Since asterisk is a perfectly valid authority (asterisk is a sub-delim)
+# Since asterisk is a perfectly valid authority (asterisk is a sub-delim),
 # that form is left out.
 #
 #  request_target = origin_form
@@ -48,9 +48,9 @@ dec cap_authority;
 #                 | authority_form
 #                 | asterisk_form 
 let request_target = 
-          (law_http_cap_origin_form $ cap_origin_URI) 
-        | (law_http_cap_absolute_form $ cap_absolute_URI)
-        | (law_http_cap_authority_form $ cap_authority);
+          (law_ht_cap_origin_form $ cap_origin_URI) 
+        | (law_ht_cap_absolute_form $ cap_absolute_URI)
+        | (law_ht_cap_authority_form $ cap_authority);
 
 # HTTP_name = "HTTP" ; HTTP
 # HTTP_version = HTTP_name "/" DIGIT "." DIGIT
@@ -59,30 +59,39 @@ let HTTP_version = HTTP_name '/' DIGIT '.' DIGIT;
 
 # method = token
 # start_line = method SP request_target SP HTTP_version CRLF
-let start_line = 
-    (law_http_cap_method $ token) SP 
+let request_line = 
+    (law_ht_cap_method $ token) SP 
     request_target SP 
-    (law_http_cap_version $ HTTP_version) CRLF;
+    (law_ht_cap_version $ HTTP_version) CRLF;
 
 # field_vchar = VCHAR
 # field_content  = field_vchar [ 1*( SP | HTAB ) field_vchar ]
-let field_content = VCHAR 0_1(1_127(SP | HTAB) VCHAR);
+# let field_content = VCHAR 0_1(1_127(SP | HTAB) VCHAR);
+set field_content = VCHAR + ' ' + %09;
 
 # field_value = *( field_content )
-let field_value = 0_127(field_content);
+let field_value = 0_1023(field_content);
 
 # field-name     = token
 # header_field = field_name ":" OWS field_value OWS
 let header_field = 
-        (law_http_cap_field_name $ token) ':' 
-        OWS (law_http_cap_field_value $ field_value) OWS;
+        (law_ht_cap_field_name $ token) ':' 
+        OWS (law_ht_cap_field_value $ field_value) OWS;
 
-# HTTP_message = start_line
-#              *( header_field CRLF )
-#              CRLF
-#              [ message_body ]
-let HTTP_message_head = 
-        start_line
-        0_127((law_http_cap_field $ header_field) CRLF)
-        CRLF;
+let cap_field = law_ht_cap_field $ header_field;
 
+ # status-code = 3DIGIT 
+ let status_code = 3_3DIGIT;
+ 
+ # reason-phrase = *( HTAB | SP | VCHAR )
+ let reason_phrase = 0_127(HTAB | SP | VCHAR);
+
+# status-line = HTTP-version SP status-code SP reason-phrase CRLF
+let status_line = 
+        (law_ht_cap_version $ HTTP_version) SP 
+        (law_ht_cap_status $ status_code) SP 
+        reason_phrase CRLF;
+
+let request_head = request_line 0_127(cap_field CRLF) CRLF;
+
+let response_head = status_line 0_127(cap_field CRLF) CRLF;

@@ -60,12 +60,9 @@ sel_err_t law_uri_parse(
         struct law_uri *uri)
 {
         struct pgc_ast_lst *result;
-        enum pgc_err err = pgc_lang_parse(parser, buffer, heap, &result);
-        if(err != PGC_ERR_OK) {
-                return err;
-        } else {
-                return law_uri_from_ast(uri, result);
-        }
+        SEL_TRY_QUIETLY(pgc_lang_parse(parser, buffer, heap, &result));
+        law_uri_from_ast(uri, result);
+        return LAW_ERR_OK;
 }
 
 struct pgc_par *law_uri_parsers_query_list(struct law_uri_parsers *pars);

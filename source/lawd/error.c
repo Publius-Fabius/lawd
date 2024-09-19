@@ -4,7 +4,7 @@
 void law_err_init()
 {
         SEL_BIND(LAW_ERR_OK, "All Ok");
-        SEL_BIND(LAW_ERR_SYS, "System Error");
+        SEL_BIND(LAW_ERR_SYS, "System Error (errno)");
         SEL_BIND(LAW_ERR_OOB, "Out of Bounds Error");
         SEL_BIND(LAW_ERR_CMP, "Comparison Error");
         SEL_BIND(LAW_ERR_ENC, "Encoding Error");

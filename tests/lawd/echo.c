@@ -18,6 +18,13 @@ sel_err_t accepter(struct law_srv *srv, int socket, void *state)
 
         char buf[4096];
 
+        struct pollfd *pfd = law_srv_lease(srv);
+        pfd->events |= POLLIN;
+        pfd->fd = socket;
+
+        law_srv_yield(srv);
+        puts("reentering");
+
         ssize_t len = read(socket, buf, 4096);
         if(len < 0) {
                 SEL_THROW(SEL_ERR_SYS);
@@ -50,9 +57,9 @@ int main(int argc, char ** argv)
         cfg.backlog = 10;
         cfg.gid = 1000;
         cfg.uid = 1000;
-        cfg.guardlen = 0x1000;
-        cfg.stacklen = 0x100000;
-        cfg.prot = LAW_SRV_TCP;
+        cfg.stack_guard = 0x1000;
+        cfg.stack_length = 0x100000;
+        cfg.protocol = LAW_SRV_TCP;
         cfg.timeout = 5000;
         cfg.port = 80;
         cfg.maxconns = 10;
@@ -64,7 +71,7 @@ int main(int argc, char ** argv)
         sel_err_t err = law_srv_open(srv);
         if(err != SEL_ERR_OK) {
                 fprintf(stderr, "error opening server:\n");
-                fprintf(stderr, "error: %s\n", sel_lookup(err));
+                fprintf(stderr, "error: %s\n", sel_lookup(err)[0]);
                 fprintf(stderr, "errno: %s\n", strerror(errno));
                 goto CLEANUP;
         } 
@@ -73,7 +80,7 @@ int main(int argc, char ** argv)
         if(err != SEL_ERR_OK)
         {
                 fprintf(stderr, "error starting server:\n");
-                fprintf(stderr, "error: %s\n", sel_lookup(err));
+                fprintf(stderr, "error: %s\n", sel_lookup(err)[0]);
                 fprintf(stderr, "errno: %s\n", strerror(errno));
         }
 
