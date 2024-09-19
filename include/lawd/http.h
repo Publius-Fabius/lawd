@@ -116,6 +116,11 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
 void law_ht_hdrs_i_free(struct law_ht_hdrs_i *iterator);
 
 /** 
+ * Get the request's socket.
+ */
+int law_ht_sreq_socket(struct law_ht_sreq *request);
+
+/** 
  * Get the request's input buffer.
  * @param request The server-side request.
  * @return The request's input buffer.

@@ -105,6 +105,11 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
 
 /* SERVER REQUEST SECTION ###################################################*/
 
+int law_ht_sreq_socket(struct law_ht_sreq *req)
+{
+        return req->conn.socket;
+}
+
 struct pgc_buf *law_ht_sreq_in(struct law_ht_sreq *req)
 {
         return req->conn.in;

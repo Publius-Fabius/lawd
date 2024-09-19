@@ -16,15 +16,33 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
         struct law_uri target;
         struct law_ht_hdrs *headers;
 
-        sel_err_t err = law_ht_sreq_read_head(
-                req, 
-                &method, 
-                &version, 
-                &target, 
-                &headers);
+        struct pollfd *pfd;
 
-        if(err != LAW_ERR_OK) {
-                fprintf(stderr, "error in handler: %s\r\n", sel_lookup(err)[0]);
+        for(;;) {
+                /* Test for timeouts here. */
+                sel_err_t err = law_ht_sreq_read_head(
+                        req, 
+                        &method, 
+                        &version, 
+                        &target, 
+                        &headers);
+                if(err == LAW_ERR_AGAIN) {
+                        pfd = law_srv_lease(srv);
+                        pfd->events = POLLIN | POLLHUP;
+                        pfd->fd = law_ht_sreq_socket(req);
+                        puts("yielding");
+                        law_srv_yield(srv);
+                } else if(err != LAW_ERR_OK) {
+                        /* Send 400 here. */
+                        law_ht_sreq_done(req);
+                        fprintf(stderr, 
+                                "error reading request head: %s\r\n", 
+                                sel_lookup(err)[0]);
+                        /* Error other than OK will stop the server. */
+                        return LAW_ERR_OK;
+                } else {
+                        break;
+                }
         }
 
         puts(law_ht_meth_str(method));
@@ -39,21 +57,38 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
                 printf("%s: %s\r\n", name, value);
         }
 
-        law_ht_sreq_write_head(
+        SEL_TRY(law_ht_sreq_write_head(
                 req,
                 200,
                 2,
                 (const char *[][2]){ 
                         { "Content-Length", "3" },
                         { "Content-Type", "text/plain" }
-                });
+                }));
         
         struct pgc_buf *out = law_ht_sreq_out(req);
 
         pgc_buf_put(out, "abc", 3);
 
-        law_ht_sreq_write_data(req);
-
+        for(;;) {
+                sel_err_t err = law_ht_sreq_write_data(req);
+                if(err == LAW_ERR_AGAIN) {
+                        pfd = law_srv_lease(srv);
+                        pfd->events = POLLOUT | POLLHUP;
+                        pfd->fd = law_ht_sreq_socket(req);
+                        law_srv_yield(srv);
+                } else if(err != LAW_ERR_OK) {
+                        /* Send 500 here. */
+                        law_ht_sreq_done(req);
+                        fprintf(stderr, 
+                                "error writing response: %s\r\n", 
+                                sel_lookup(err)[0]);
+                        return LAW_ERR_OK;
+                } else {
+                        break;
+                }
+        }
+        
         law_ht_sreq_done(req);
 
         return LAW_ERR_OK;
@@ -61,6 +96,8 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
 
 int main(int argc, char ** args) 
 {
+        law_err_init();
+
         static struct law_ht_sctx_cfg ctx_cfg;
         ctx_cfg.in_length = 0x3000;
         ctx_cfg.in_guard = 0x1000;
