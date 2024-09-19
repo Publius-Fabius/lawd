@@ -3,8 +3,35 @@
 CFLAGS = -g -std=c99 -pedantic -Wconversion -Wall -I include
 CC = gcc
 
+
+../selc/lib/libselc.a: 
+	make -C ../selc lib/libselc.a 
+
+lib/libselc.a: ../selc/lib/libselc.a 
+	ln --force -s ../$< $@ 
+
+../pgenc/lib/libpgenc.a: 
+	make -C ../pgenc lib/libpgenc.a 
+
+lib/libpgenc.a: ../pgenc/lib/libpgenc.a  
+	ln --force -s ../$< $@
+
+include/selc: 
+	ln --force -s ../../selc/include/selc $@
+
+include/pgenc: 
+	ln --force -s ../../pgenc/include/pgenc $@
+
+../pgenc/bin/pgenc: 
+	make -C ../pgenc bin/pgenc 
+
+bin/pgenc: ../pgenc/bin/pgenc 
+	ln --force -s ../$< $@
+
+includes: include/selc include/pgenc 
+
 # error.h
-build/lawd/error.o : source/lawd/error.c include/lawd/error.h
+build/lawd/error.o : source/lawd/error.c include/lawd/error.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 bin/test_error : tests/lawd/error.c \
 	build/lawd/error.o \
@@ -39,7 +66,7 @@ grind_test_coroutine : bin/test_coroutine
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # server.h
-build/lawd/server.o : source/lawd/server.c include/lawd/server.h
+build/lawd/server.o : source/lawd/server.c include/lawd/server.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 bin/test_server : tests/lawd/server.c \
 	build/lawd/error.o \
@@ -64,9 +91,9 @@ bin/echo: tests/lawd/echo.c \
 
 
 # uri.h 
-tmp/lawd/uri_parsers.c : grammar/uri.g 
+tmp/lawd/uri_parsers.c : grammar/uri.g bin/pgenc
 	bin/pgenc -g $< -s $@ -d law_uri_parsers
-build/lawd/uri.o : source/lawd/uri.c 
+build/lawd/uri.o : source/lawd/uri.c include/lawd/uri.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 build/lawd/uri_parsers.o : tmp/lawd/uri_parsers.c 
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -78,9 +105,9 @@ bin/test_uri : tests/lawd/uri.c \
 	$(CC) $(CFLAGS) -o $@ $^
 
 # http.h
-tmp/lawd/http_parsers.c : grammar/http.g 
+tmp/lawd/http_parsers.c : grammar/http.g bin/pgenc
 	bin/pgenc -g $< -s $@ -d law_ht_parsers
-build/lawd/http_parsers.o : tmp/lawd/http_parsers.c
+build/lawd/http_parsers.o : tmp/lawd/http_parsers.c includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 build/lawd/http.o : source/lawd/http.c 
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -113,8 +140,6 @@ bin/hello : tests/lawd/hello.c \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 
-
-
 # test suite
 suite: \
 	grind_test_error \
@@ -129,6 +154,11 @@ clean:
 	rm tmp/lawd/uri_parsers.c || true 
 	rm tmp/lawd/http_parsers.c || true
 	rm lib/liblawd.a || true
+	rm lib/libselc.a || true 
+	rm lib/libpgenc.a || true 
+	rm include/pgenc || true 
+	rm include/selc || true
+	rm bin/pgenc || true
 	rm bin/echo || true 
 	rm bin/hello || true
-
+	

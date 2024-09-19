@@ -180,8 +180,6 @@ sel_err_t law_ht_sreq_write_data(struct law_ht_sreq *request);
  */
 sel_err_t law_ht_sreq_done(struct law_ht_sreq *request);
 
-/* CLIENT REQUEST SECTION ****************************************************/
-
 /**
  * Create a new client-side request.
  */

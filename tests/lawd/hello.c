@@ -22,7 +22,7 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
                 &version, 
                 &target, 
                 &headers);
-                
+
         if(err != LAW_ERR_OK) {
                 fprintf(stderr, "error in handler: %s\r\n", sel_lookup(err)[0]);
         }
