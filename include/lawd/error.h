@@ -21,16 +21,43 @@ enum law_err_type {
         LAW_ERR_SYN     = PGC_ERR_SYN,          /** Syntax Error */
         LAW_ERR_FLO     = PGC_ERR_FLO,          /** Numeric Overflow Error */
         LAW_ERR_OOM     = PGC_ERR_OOM,          /** Out of Memory Error */
+        LAW_ERR_SSL     = PGC_ERR_SSL,          /** SSL Error */
 
         /* LAWD Errors */
 
-        LAW_ERR_AGAIN   = -1700,                /** Try Again */
-        LAW_ERR_MODE    = -1701,                /** Bad Mode */
-        LAW_ERR_METH    = -1702,                /** Method Not Allowed */
-        LAW_ERR_VERS    = -1703,                /** Unsupported Version */
-        LAW_ERR_GAI     = -1704                 /** Address Lookup Error */
+        LAW_ERR_MODE    = -1700,                /** Bad Mode */
+        LAW_ERR_GAI     = -1701,                /** Address Lookup Error */
+        LAW_ERR_WNTW    = -1702,                /** Wants to Write */
+        LAW_ERR_WNTR    = -1703,                /** Wants to Read */
+        LAW_ERR_TTL     = -1704,                /** Timeout Error */
+        LAW_ERR_YLD     = -1705                 /** Yield */
 };
 
+/**
+ * Get the PGENC error.
+ */
+enum pgc_err law_err_pgc_get();
+
+/**
+ * Set the PGENC error.
+ */
+void law_err_pgc_set(enum pgc_err error);
+
+/**
+ * Get the SSL error.
+ * @return The SSL error.
+ */
+int law_err_ssl_get();
+
+/**
+ * Set the SSL error.
+ * @param error The new SSL error value.
+ */
+void law_err_ssl_set(const int error);
+
+/** 
+ * Initialize LAWD errors. 
+ */
 void law_err_init();
 
 #endif

@@ -3,40 +3,7 @@
 
 #include "lawd/server.h"
 #include "lawd/uri.h"
-#include <stdio.h>
-#include <sys/socket.h>
-
-/** HTTP Method */
-enum law_ht_meth {
-        LAW_HT_GET,                     /** Get Method */
-        LAW_HT_POST,                    /** Post Method */
-        LAW_HT_HEAD,                    /** Head Method */
-        LAW_HT_PUT,                     /** Put Method */
-        LAW_HT_DELETE,                  /** Delete Method */
-        LAW_HT_PATCH,                   /** Patch Method */
-        LAW_HT_OPTIONS,                 /** Options Method */
-        LAW_HT_TRACE,                   /** Trace Method */
-        LAW_HT_CONNECT                  /** Connect Method */
-};
-
-/** HTTP Version */
-enum law_ht_vers {
-        LAW_HT_1_1,                     /** Version 1.1 */
-        LAW_HT_2                        /** Version 2 */
-};
-
-/** HTTP Message Tags */
-enum law_ht_tag {
-        LAW_HT_STATUS,                  /** Status */
-        LAW_HT_METHOD,                  /** Method */
-        LAW_HT_VERSION,                 /** Version */
-        LAW_HT_FIELD,                   /** Header Field */
-        LAW_HT_FIELD_NAME,              /** Header Field Name */
-        LAW_HT_FIELD_VALUE,             /** Header Field Value */
-        LAW_HT_ORIGIN_FORM,             /** Origin URI Form */
-        LAW_HT_ABSOLUTE_FORM,           /** Absolute URI Form */
-        LAW_HT_AUTHORITY_FORM           /** Authority URI Form */
-};
+#include <openssl/ssl.h>
 
 /** HTTP Headers */
 struct law_ht_hdrs;
@@ -63,6 +30,12 @@ typedef sel_err_t (*law_ht_handler_t)(
         struct law_srv *server,
         struct law_ht_sreq *request);
 
+/** Security Mode */
+enum law_ht_security{
+        LAW_HT_SSL,                             /** Use OpenSSL Socket IO */
+        LAW_HT_UNSECURED                        /** Use System Socket IO */
+};
+
 /** HTTP Server Context Configuration */
 struct law_ht_sctx_cfg {
         size_t in_length;                       /** Input Buffer Length */
@@ -72,6 +45,9 @@ struct law_ht_sctx_cfg {
         size_t heap_length;                     /** Heap Length */
         size_t heap_guard;                      /** Heap Guard */
         law_ht_handler_t handler;               /** Request Handler */
+        enum law_ht_security security;          /** Security Mode */
+        const char *certificate;                /** Certificate File */
+        const char *private_key;                /** Private Key File */
 };
 
 /** HTTP Client Request Configuration */
@@ -87,12 +63,12 @@ struct law_ht_creq_cfg {
 /**
  * Get the header value by name.
  * @param headers A collection of HTTP message headers.
- * @param name The header field to search for.
+ * @param field_name The header field to search for.
  * @return The field's value or NULL.
  */
 const char *law_ht_hdrs_get(
         struct law_ht_hdrs *headers,
-        const char *name);
+        const char *field_name);
 
 /**
  * Get an iterator for the header collection.
@@ -103,22 +79,37 @@ struct law_ht_hdrs_i *law_ht_hdrs_elems(struct law_ht_hdrs *headers);
 
 /**
  * Get the next header field <name, value> pair.  A NULL return value indicates
- * the iterator's resources were freed and no cleanup is necessary.
+ * the iterator's resources were freed and no cleanup is necessary.  If NULL is
+ * returned, the values of (*name) and (*value) are undefined.
+ * @param iterator The iterator to advance.
+ * @param field_name Return value pointing to the field's name component.
+ * @param field_value Return value pointing to the field's value component.
+ * @return NULL or iterator
  */
 struct law_ht_hdrs_i *law_ht_hdrs_i_next(
         struct law_ht_hdrs_i *iterator,
-        const char **name,
-        const char **value);
+        const char **field_name,
+        const char **field_value);
 
 /**
- * Discard a non-zero iterator.
+ * Discard an unfinished iteration.
+ * @param iterator The iterator to free.
  */
 void law_ht_hdrs_i_free(struct law_ht_hdrs_i *iterator);
 
 /** 
- * Get the request's socket.
+ * Get the request's system socket.
+ * @param request The server-side request.
+ * @return The request's system socket.
  */
 int law_ht_sreq_socket(struct law_ht_sreq *request);
+
+/**
+ * Get the request's SSL state.
+ * @param request The server-side request.
+ * @return The request's SSL state.
+ */
+SSL *law_ht_sreq_ssl(struct law_ht_sreq *request);
 
 /** 
  * Get the request's input buffer.
@@ -142,46 +133,116 @@ struct pgc_buf *law_ht_sreq_out(struct law_ht_sreq *request);
 struct pgc_stk *law_ht_sreq_heap(struct law_ht_sreq *request);
 
 /**
- * Read the server-side request's message head.
- * @return 
- * LAW_ERR_AGAIN - Try again
- * LAW_ERR_OOB - Buffer is full
- * LAW_ERR_EOF - End of file encountered
- * LAW_ERR_SYS - Socket IO
- * LAW_ERR_SYN - Message Syntax
- * LAW_ERR_METH - Method not allowed
- * LAW_ERR_VERS - Version not supported
- * SEL_ERR_OK - All ok.
+ * Accept an SSL connection.  This function should only be called once even 
+ * if it returns LAW_ERR_WNTR or LAW_ERR_WNTW.
+ * @returns
+ * LAW_ERR_WNTR - Wants to read.
+ * LAW_ERR_WNTW - Wants to write.
+ * LAW_ERR_SSL - SSL error.
+ * LAW_ERR_OK - All OK.
  */
-sel_err_t law_ht_sreq_read_head(
-        struct law_ht_sreq *request,
-        enum law_ht_meth *method,
-        enum law_ht_vers *version,
-        struct law_uri *target,
-        struct law_ht_hdrs **headers);
+sel_err_t law_ht_sreq_ssl_accept(struct law_ht_sreq *request);
+
+/**
+ * Shutdown an SSL connection and free its resources.  This function should
+ * be called multiple times until it returns LAW_ERR_OK in order to fully
+ * complete the two way SSL shutdown procedure.
+ * LAW_ERR_WNTR - Wants to read.
+ * LAW_ERR_WNTW - Wants to write.
+ * LAW_ERR_SSL - SSL error.
+ * LAW_ERR_OK - All OK.
+ */
+sel_err_t law_ht_sreq_ssl_shutdown(struct law_ht_sreq *request);
 
 /** 
  * Read data into the request's input buffer.
+ * @param request The server-side request.
+ * @return
+ * LAW_ERR_WNTR - Wants to read.
+ * LAW_ERR_WNTW - Wants to write.
+ * LAW_ERR_OOB - Buffer is full.
+ * LAW_ERR_EOF - End of file. 
+ * LAW_ERR_SYS - Socket IO. 
+ * LAW_ERR_SSL - SSL error. 
+ * LAW_ERR_OK - All OK.
  */
 sel_err_t law_ht_sreq_read_data(struct law_ht_sreq *request);
 
 /**
- * Write the server-side request's response head.
+ * Read the server-side request's message head.
  * @param request The server-side request.
+ * @param method Return value pointing to the method string.
+ * @param target Return value pointing to the URI target.
+ * @param version Return value pointing to the version string.
+ * @param headers Return value pointing to an opaque header collection.
+ * @return
+ * LAW_ERR_WNTR - Wants to read. 
+ * LAW_ERR_WNTW - Wants to write. 
+ * LAW_ERR_OOB - Buffer is full. 
+ * LAW_ERR_SYN - Message syntax. 
+ * LAW_ERR_EOF - End of file. 
+ * LAW_ERR_SYS - System error. 
+ * LAW_ERR_SSL - SSL error. 
+ * LAW_ERR_OK - All OK. 
  */
-sel_err_t law_ht_sreq_write_head(
+sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
+        const char **method,
+        struct law_uri *target,
+        const char **version, 
+        struct law_ht_hdrs **headers);
+
+/**
+ * Set the status line.
+ * @param request The server-side request.
+ * @param version The HTTP version.
+ * @param status The status code.
+ * @param reason The reason.
+ * @return 
+ * LAW_ERR_OOB - Buffer is full.
+ * LAW_ERR_OK - All OK.
+ */
+sel_err_t law_ht_sreq_set_status(
+        struct law_ht_sreq *request,
+        const char *version,
         const int status,
-        const size_t header_count,
-        const char *headers[][2]);
+        const char *reason);
+
+/**
+ * Add a response header.
+ */
+sel_err_t law_ht_sreq_add_header(
+        struct law_ht_sreq *request,
+        const char *field_name,
+        const char *field_value);
+
+/**
+ * Begin response body.
+ * @param request The server-side request.
+ * @return 
+ * LAW_ERR_OOB - Buffer is full.
+ * LAW_ERR_OK - All OK.
+ */
+sel_err_t law_ht_sreq_body(struct law_ht_sreq *request);
 
 /**
  * Write data from the output buffer.
+ * @param request The server-side request.
+ * @returns 
+ * LAW_ERR_WNTR - Wants to read
+ * LAW_ERR_WNTW - Wants to write
+ * LAW_ERR_SYS - System error
+ * LAW_ERR_SSL - SSL error
+ * LAW_ERR_OK - All OK.
  */
 sel_err_t law_ht_sreq_write_data(struct law_ht_sreq *request);
 
 /**
  * Done writing response body.
+ * @param request The server-side request.
+ * @return 
+ * LAW_ERR_OK 
+ * LAW_ERR_SYS
  */
 sel_err_t law_ht_sreq_done(struct law_ht_sreq *request);
 
@@ -194,6 +255,20 @@ struct law_ht_creq *law_ht_creq_create(struct law_ht_creq_cfg *config);
  * Destroy the client-side request.
  */
 void law_ht_creq_destroy(struct law_ht_creq *request);
+
+/** 
+ * Get the request's system socket.
+ * @param request The client-side request.
+ * @return The request's system socket.
+ */
+int law_ht_creq_socket(struct law_ht_creq *request);
+
+/**
+ * Get the request's SSL state.
+ * @param request The client-side request.
+ * @return The request's SSL state.
+ */
+SSL *law_ht_creq_SSL(struct law_ht_creq *request);
 
 /**
  * Get the client-side request's output buffer
@@ -219,28 +294,36 @@ sel_err_t law_ht_creq_connect(
         const char *service);
 
 /**
- * Write the client-side request's head.
+ * Write the request-line
  */
-sel_err_t law_ht_creq_write_head(
+sel_err_t law_ht_creq_request_line(
         struct law_ht_creq *request,
-        enum law_ht_meth request_method,
-        const char *request_target,
-        const size_t header_count,
-        const char *headers[][2]);
+        const char *method,
+        const char *target,
+        const char *version);
+
+/**
+ * Write a header.
+ */
+sel_err_t law_ht_creq_header(
+        struct law_ht_creq *request,
+        const char *field_name,
+        const char *field_value);
+
+/**
+ * Begin writing the request body.
+ */
+sel_err_t law_ht_creq_body(struct law_ht_creq *request);
 
 /**
  * Write data from the output buffer.
  */
-ssize_t law_ht_creq_write_data(struct law_ht_creq *request);
+sel_err_t law_ht_creq_write_data(struct law_ht_creq *request);
 
 /**
- * Read the client-side request's response head.
+ * Send the request.
  */
-sel_err_t law_ht_creq_read_head(
-        struct law_ht_creq *request,
-        enum law_ht_vers *version,
-        int *status,
-        struct law_ht_hdrs **headers);
+sel_err_t law_ht_creq_send(struct law_ht_creq *request);
 
 /**
  * Read bytes into the input buffer.
@@ -248,7 +331,16 @@ sel_err_t law_ht_creq_read_head(
 ssize_t law_ht_creq_read_data(struct law_ht_creq *request);
 
 /**
- * Finish the client-side request.
+ * Read the client-side request's response head.
+ */
+sel_err_t law_ht_creq_read_head(
+        struct law_ht_creq *request,
+        const char **version,
+        int *status,
+        struct law_ht_hdrs **headers);
+
+/**
+ * Done reading response.
  */
 sel_err_t law_ht_creq_done(struct law_ht_creq *request);
 
@@ -256,16 +348,6 @@ sel_err_t law_ht_creq_done(struct law_ht_creq *request);
  * Get status code description. 
  */
 const char *law_ht_status_str(const int status_code);
-
-/** 
- * Get string for method
- */
-const char *law_ht_meth_str(enum law_ht_meth method);
-
-/**
- * Get string for version
- */
-const char *law_ht_vers_str(enum law_ht_vers version);
 
 /** 
  * Create a new HTTP state. 
@@ -278,13 +360,21 @@ struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *conf);
 void law_ht_sctx_destroy(struct law_ht_sctx *http);
 
 /**
+ * Initialize the HTTP server context.
+ * @param context The server context.
+ * @return 
+ * LAW_ERR_SSL
+ * LAW_ERR_OK
+ */
+sel_err_t law_ht_sctx_init(struct law_ht_sctx *context);
+
+/**
  * Entry function for HTTP functionality.
  */
 sel_err_t law_ht_accept(
         struct law_srv *server,
         int socket,
         void *state);
-
 
 /* PARSER SECTION */
 
@@ -348,6 +438,19 @@ sel_err_t law_ht_accept(
  *              CRLF
  *              [ message_body ]
  */
+
+/** HTTP Message Tags */
+enum law_ht_tag {
+        LAW_HT_STATUS,                  /** Status */
+        LAW_HT_METHOD,                  /** Method */
+        LAW_HT_VERSION,                 /** Version */
+        LAW_HT_FIELD,                   /** Header Field */
+        LAW_HT_FIELD_NAME,              /** Header Field Name */
+        LAW_HT_FIELD_VALUE,             /** Header Field Value */
+        LAW_HT_ORIGIN_FORM,             /** Origin URI Form */
+        LAW_HT_ABSOLUTE_FORM,           /** Absolute URI Form */
+        LAW_HT_AUTHORITY_FORM           /** Authority URI Form */
+};
 
 enum pgc_err law_ht_cap_status(
         struct pgc_buf *buffer,

@@ -138,7 +138,7 @@ bin/hello : tests/lawd/hello.c \
 	lib/liblawd.a \
 	lib/libpgenc.a \
 	lib/libselc.a 
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
 
 # test suite
 suite: \
@@ -147,6 +147,15 @@ suite: \
 	grind_test_coroutine \
 	grind_test_server \
 	grind_test_util
+
+tmp/key.pem:
+	openssl genrsa -out $@
+
+tmp/csr.pem: tmp/key.pem
+	openssl req -new -key $< -out $@
+
+tmp/cert.pem:  tmp/csr.pem
+	openssl x509 -req -days 365 -in $< -signkey tmp/key.pem -out $@
 
 clean:
 	rm build/lawd/*.o || true

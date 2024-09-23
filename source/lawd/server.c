@@ -239,7 +239,7 @@ sel_err_t law_srv_yield(struct law_srv *server)
         return law_cor_yield(
                 server->caller, 
                 server->target->callee, 
-                LAW_ERR_AGAIN);
+                LAW_ERR_YLD);
 }
 
 struct pollfd *law_srv_lease(struct law_srv *s)
@@ -414,7 +414,7 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
                                 /* Accept finished. */
                                 law_srv_conn_destroy(conn);
                                 break;
-                        case LAW_ERR_AGAIN:
+                        case LAW_ERR_YLD:
                                 /* Accept is suspended until later. */
                                 conn->mode = LAW_SRV_SUSPENDED;
                                 *law_srv_conns_take(srv->conns[0]) = conn;
@@ -486,7 +486,7 @@ static sel_err_t law_srv_loop(struct law_srv *srv)
                         srv->pfds[0]->size,
                         srv->cfg->timeout));
         }
-        return SEL_ERR_SYS;
+        return SEL_ERR_OK;
 }
 
 sel_err_t law_srv_start(struct law_srv *server)

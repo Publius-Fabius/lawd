@@ -6,9 +6,9 @@
 #include "pgenc/lang.h"
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
 #include <errno.h>
-#include <openssl/types.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -26,6 +26,7 @@ struct law_ht_hdrs_i {
 /** HTTP Connection State */
 struct law_ht_conn {
         int socket;
+        enum law_ht_security security;
         SSL *ssl;
         struct pgc_buf *in;
         struct pgc_buf *out;
@@ -33,13 +34,12 @@ struct law_ht_conn {
 
 struct law_ht_sreq {
         struct law_ht_conn conn;
-        size_t scan;
         struct pgc_stk *heap;
+        struct law_ht_sctx *context;
 };
 
 struct law_ht_creq {
         struct law_ht_conn conn;
-        size_t scan;
         struct pgc_stk *heap;
         struct law_smem *in_mem;
         struct law_smem *out_mem;
@@ -48,6 +48,7 @@ struct law_ht_creq {
 
 struct law_ht_sctx {
         struct law_ht_sctx_cfg *cfg;
+        SSL_CTX *ssl_context;
 };
 
 /* HEADERS SECTION ##########################################################*/
@@ -56,7 +57,6 @@ const char *law_ht_hdrs_get(
         struct law_ht_hdrs *hdrs,
         const char *name)
 {
-        static const char *EMPTY = "";
         for(struct pgc_ast_lst *l = hdrs->list; l; l = l->nxt) {
                 struct pgc_ast_lst *tuple = pgc_ast_tolst(l->val);
                 if(strcmp(pgc_ast_tostr(tuple->val), name)) {
@@ -64,7 +64,7 @@ const char *law_ht_hdrs_get(
                 } else if(tuple->nxt) {
                         return pgc_ast_tostr(tuple->nxt->val);
                 } else {
-                        return EMPTY;
+                        return "";
                 }
         }
         return NULL;
@@ -87,18 +87,13 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
         const char **name,
         const char **value)
 {
-        static const char *EMPTY = "";
         if(!iter->list) {
                 law_ht_hdrs_i_free(iter);
                 return NULL;
         }
-        struct pgc_ast_lst *lst = pgc_ast_tolst(iter->list->val);
-        *name = pgc_ast_tostr(lst->val);
-        if(lst->nxt) {
-                *value = pgc_ast_tostr(lst->nxt->val);
-        } else {
-                *value = EMPTY;
-        }
+        struct pgc_ast_lst *ele = pgc_ast_tolst(iter->list->val);
+        *name = pgc_ast_tostr(ele->val);
+        *value = ele->nxt ? pgc_ast_tostr(ele->nxt->val) : "";
         iter->list = iter->list->nxt;
         return iter;
 }
@@ -108,6 +103,11 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
 int law_ht_sreq_socket(struct law_ht_sreq *req)
 {
         return req->conn.socket;
+}
+
+SSL *law_ht_sreq_ssl(struct law_ht_sreq *request)
+{
+        return request->conn.ssl;
 }
 
 struct pgc_buf *law_ht_sreq_in(struct law_ht_sreq *req)
@@ -125,27 +125,119 @@ struct pgc_stk *law_ht_sreq_heap(struct law_ht_sreq *req)
         return req->heap;
 }
 
-static sel_err_t law_ht_read_data(struct law_ht_conn *conn)
+sel_err_t law_ht_sreq_ssl_accept(struct law_ht_sreq *request)
 {
-        struct pgc_buf *in = conn->in;
-        const size_t max = pgc_buf_max(in);
-        const size_t end = pgc_buf_end(in);
-        const size_t pos = pgc_buf_tell(in);
-        const size_t rdy = end - pos;
-        const size_t avl = max - rdy;
+        ERR_clear_error();
+        SSL *ssl = SSL_new(request->context->ssl_context);
+        if(!ssl) {
+                return LAW_ERR_SSL;
+        }
 
-        SEL_ASSERT(pos <= end);
-        SEL_ASSERT(rdy <= max);
+        ERR_clear_error();
+        int ssl_err = SSL_set_fd(ssl, request->conn.socket);
+        if(ssl_err == 0) {
+                SSL_free(ssl);
+                return LAW_ERR_SSL;
+        }
 
-        if(!avl) {
-                return LAW_ERR_OOB;
-        } 
+        request->conn.security = LAW_HT_SSL;
+        request->conn.ssl = ssl;
 
-        enum pgc_err err = pgc_buf_read(in, conn->socket, avl);
+        ERR_clear_error();
+        ssl_err = SSL_accept(ssl);
+
+        if(ssl_err == 0) {
+                /* SSL was shut down gracefully. */
+                SSL_free(ssl);
+                return LAW_ERR_EOF;
+        } else if(ssl_err < 0) {
+                /* An error or polling data. */
+                ssl_err = SSL_get_error(ssl, ssl_err);
+                switch(ssl_err) {
+                        case SSL_ERROR_WANT_READ:
+                                return LAW_ERR_WNTR;
+                        case SSL_ERROR_WANT_WRITE:
+                                return LAW_ERR_WNTW;
+                        default:
+                                SSL_free(ssl);
+                                law_err_ssl_set(ssl_err);
+                                return LAW_ERR_SSL;
+                }
+        } else {
+                /* Accept totally completed. */
+                return LAW_ERR_OK;
+        }
+}
+
+sel_err_t law_ht_sreq_ssl_shutdown(struct law_ht_sreq *request)
+{
+        SSL *ssl = request->conn.ssl;
+
+        ERR_clear_error();
+        int ssl_err = SSL_shutdown(ssl);
+
+        if(ssl_err == 0) {
+                /* Notify sent, waiting on client response. */
+                return LAW_ERR_WNTR;
+        } else if(ssl_err < 0) {
+                ssl_err = SSL_get_error(ssl, ssl_err);
+                switch(ssl_err) {
+                        case SSL_ERROR_WANT_READ:
+                                return LAW_ERR_WNTR;
+                        case SSL_ERROR_WANT_WRITE:
+                                return LAW_ERR_WNTW;
+                        default:
+                                SSL_free(ssl);
+                                law_err_ssl_set(ssl_err);
+                                return LAW_ERR_SSL;
+                }
+        } else {
+                /* Shutdown was a success. */
+                SSL_free(ssl);
+                return LAW_ERR_OK; 
+        }
+}
+
+static sel_err_t law_ht_read_SSL(
+        struct pgc_buf *in,
+        SSL *ssl,
+        const size_t nbytes)
+{
+        int ssl_err;
+        
+        ERR_clear_error();
+        const enum pgc_err err = pgc_buf_sread(in, ssl, nbytes, &ssl_err);
+
+        SEL_ASSERT(err != PGC_ERR_OOB);
+
+        if(err == PGC_ERR_SSL) {
+                ssl_err = SSL_get_error(ssl, ssl_err);
+                switch(ssl_err) {
+                        case SSL_ERROR_WANT_READ: 
+                                return LAW_ERR_WNTR;
+                        case SSL_ERROR_WANT_WRITE:
+                                return LAW_ERR_WNTW;
+                        default:
+                                law_err_ssl_set(ssl_err);
+                                return LAW_ERR_SSL;
+                }
+        } else {
+                return err;
+        }
+}
+
+static sel_err_t law_ht_read_sys(
+        struct pgc_buf *in,
+        int socket,
+        const size_t nbytes)
+{
+        const enum pgc_err err = pgc_buf_read(in, socket, nbytes);
+
+        SEL_ASSERT(err != PGC_ERR_OOB);
 
         if(err == PGC_ERR_SYS) {
                 if(errno == EAGAIN || errno == EWOULDBLOCK) {
-                        return LAW_ERR_AGAIN;
+                        return LAW_ERR_WNTR;
                 } else {
                         return LAW_ERR_SYS;
                 }
@@ -154,59 +246,68 @@ static sel_err_t law_ht_read_data(struct law_ht_conn *conn)
         }
 }
 
+static sel_err_t law_ht_read_data(struct law_ht_conn *conn)
+{
+        struct pgc_buf *in = conn->in;
+        const size_t max = pgc_buf_max(in);
+        const size_t end = pgc_buf_end(in);
+        const size_t pos = pgc_buf_tell(in);
+
+        const size_t block = end - pos;
+        const size_t avail = max - block;
+
+        SEL_ASSERT(pos <= end);
+        SEL_ASSERT(block <= max);
+
+        if(!avail) {
+                return LAW_ERR_OOB;
+        } else switch(conn->security) {
+                case LAW_HT_UNSECURED:
+                        return law_ht_read_sys(in, conn->socket, avail);
+                case LAW_HT_SSL: 
+                        return law_ht_read_SSL(in, conn->ssl, avail);
+                default: 
+                        return SEL_ABORT();
+        }
+}
+
 static sel_err_t law_ht_read_head(
         struct law_ht_conn *conn,
         struct pgc_par *parser,
         struct pgc_stk *heap,
-        size_t *scan,
         struct pgc_ast_lst **head)
 {
-        const char *CRLF2 = "\r\n\r\n";
-        const size_t CRLF2_LEN = 4;
-        const size_t CRLF2_STEP = CRLF2_LEN - 1;
+        static const char *CRLF2 = "\r\n\r\n";
+        static const size_t CRLF2_LEN = 4;
 
         struct pgc_buf *in = conn->in;
         const size_t base = pgc_buf_tell(in);
-
-        /* Perform an eager read. */
+        const size_t max = pgc_buf_max(in);
 
         const sel_err_t read_err = law_ht_read_data(conn); 
 
-        /* Scan for the double CRLF. */
-
-        enum pgc_err err = pgc_buf_seek(in, *scan);
-
-        SEL_ASSERT(err == PGC_ERR_OK);
-
-        err = pgc_buf_scan(in, (void*)CRLF2, CRLF2_LEN);
+        enum pgc_err err = pgc_buf_scan(in, (void*)CRLF2, CRLF2_LEN);
 
         if(err != PGC_ERR_OK) {
-                
-                /* The double CRLF was not encountered. */
-
                 const size_t end = pgc_buf_end(in);
-                *scan = end > CRLF2_STEP ? end - CRLF2_STEP : 0;
+                const size_t block = end - base;
                 err = pgc_buf_seek(in, base);
 
                 SEL_ASSERT(err == PGC_ERR_OK);
                 SEL_ASSERT(base <= end);
+                SEL_ASSERT(block <= max)
 
-                if(end - base >= pgc_buf_max(in)) {
+                if(block == max) {
                         return LAW_ERR_OOB;
-                } else if(read_err != LAW_ERR_OK) {
-                        return read_err;
+                } else if(read_err == LAW_ERR_OK) {
+                        return LAW_ERR_WNTR;
                 } else {
-                        return LAW_ERR_AGAIN;
+                        return read_err;
                 }   
         }
         
-        /* Mark the spot where the double CRLF was found. */
-
         const size_t head_end = pgc_buf_tell(in);
-        *scan = head_end;
         
-        /* Parse the HTTP message's head. */
-
         err = pgc_buf_seek(in, base);
 
         SEL_ASSERT(err == PGC_ERR_OK);
@@ -217,54 +318,18 @@ static sel_err_t law_ht_read_head(
 
         err = pgc_lang_parse(parser, &lens, heap, head);
         if(err != PGC_ERR_OK) {
+                law_err_pgc_set(err);
                 return LAW_ERR_SYN;
         }
 
         return LAW_ERR_OK;
 }
 
-
-static enum law_ht_meth law_ht_get_method(const char *str)
-{
-        if(!strcmp(str, "GET")) {
-                return LAW_HT_GET;
-        } else if(!strcmp(str, "POST")) {
-                return LAW_HT_POST;
-        } else if(!strcmp(str, "HEAD")) {
-                return LAW_HT_HEAD;
-        } else if(!strcmp(str, "PUT")) {
-                return LAW_HT_PUT;
-        } else if(!strcmp(str, "DELETE")) {
-                return LAW_HT_DELETE;
-        } else if(!strcmp(str, "PATCH")) {
-                return LAW_HT_PATCH;
-        } else if(!strcmp(str, "OPTIONS")) {
-                return LAW_HT_OPTIONS;
-        } else if(!strcmp(str, "TRACE")) {
-                return LAW_HT_TRACE;
-        } else if(!strcmp(str, "CONNECT")) {
-                return LAW_HT_CONNECT;
-        } else {
-                return -1;
-        }
-}
-
-static enum law_ht_vers law_ht_get_version(const char *str)
-{
-        if(!strcmp(str, "HTTP/1.1")) {
-                return LAW_HT_1_1;
-        } else if(!strcmp(str, "HTTP/2")) {
-                return LAW_HT_2;
-        } else {
-                return -1;
-        }
-}
-
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
-        enum law_ht_meth *method,
-        enum law_ht_vers *version,
+        const char **method,
         struct law_uri *target,
+        const char **version,
         struct law_ht_hdrs **headers)
 {
         struct pgc_stk *heap = request->heap;
@@ -277,31 +342,17 @@ sel_err_t law_ht_sreq_read_head(
                 &request->conn, 
                 head_par, 
                 request->heap,
-                &request->scan,
                 &head));
 
-        const enum law_ht_meth method_d = law_ht_get_method(
-                pgc_ast_tostr(pgc_ast_at(head, 0)->val));
-        if(method_d == -1) {
-                return LAW_ERR_METH;
-        }
-
-        const enum law_ht_vers version_d = law_ht_get_version(
-                pgc_ast_tostr(pgc_ast_at(head, 2)->val));
-        if(version_d == -1) {
-                return LAW_ERR_VERS;
-        }
+        *method = pgc_ast_tostr(pgc_ast_at(head, 0)->val);
+        law_uri_from_ast(target, pgc_ast_tolst(pgc_ast_at(head, 1)->val));
+        *version = pgc_ast_tostr(pgc_ast_at(head, 2)->val);
 
         *headers = pgc_stk_push(heap, sizeof(struct law_ht_hdrs));
         if(!(*headers)) {
                 return LAW_ERR_OOM;
         }
         (*headers)->list = pgc_ast_at(head, 3);
-
-        law_uri_from_ast(target, pgc_ast_tolst(pgc_ast_at(head, 1)->val));
-        
-        *method = method_d;
-        *version = version_d;
 
         return LAW_ERR_OK;
 }
@@ -311,24 +362,83 @@ sel_err_t law_ht_sreq_read_data(struct law_ht_sreq *request)
         return law_ht_read_data(&request->conn);
 }
 
-sel_err_t law_ht_sreq_write_head(
+sel_err_t law_ht_sreq_set_status(
         struct law_ht_sreq *request,
+        const char *version,
         const int status,
-        const size_t header_count,
-        const char *headers[][2])
+        const char *reason)
 {       
-        struct pgc_buf *out = request->conn.out;
-        SEL_TRY_QUIETLY(pgc_buf_printf(out, 
-                "HTTP/1.1 %i %s\r\n", 
+        return pgc_buf_printf(
+                request->conn.out, 
+                "%s %i %s\r\n", 
+                version,
                 status,
-                law_ht_status_str(status)));
-        for(size_t i = 0; i < header_count; ++i) {
-                SEL_TRY_QUIETLY(pgc_buf_printf(out,
-                        "%s:%s\r\n",
-                        headers[i][0],
-                        headers[i][1]));
+                reason);
+}
+
+sel_err_t law_ht_sreq_add_header(
+        struct law_ht_sreq *request,
+        const char *name,
+        const char *value)
+{
+        return pgc_buf_printf(
+                request->conn.out,
+                "%s: %s\r\n",
+                name,
+                value);
+}
+
+sel_err_t law_ht_sreq_body(struct law_ht_sreq *request)
+{
+        return pgc_buf_put(request->conn.out, "\r\n", 2);
+}
+
+static sel_err_t law_ht_write_sys(
+        struct pgc_buf *out,
+        int socket,
+        const size_t nbytes)
+{
+        enum pgc_err err = pgc_buf_write(out, socket, nbytes);
+
+        SEL_ASSERT(err != PGC_ERR_OOB);
+
+        if(err == PGC_ERR_SYS) {
+                if(errno == EAGAIN || errno == EWOULDBLOCK) {
+                        return LAW_ERR_WNTW;
+                } else {
+                        return LAW_ERR_SYS;
+                }
+        } else {
+                return err;
         }
-        return pgc_buf_put(out, "\r\n", 2);
+}
+
+static sel_err_t law_ht_write_SSL(
+        struct pgc_buf *out,
+        SSL *ssl,
+        const size_t nbytes)
+{
+        int ssl_err;
+        
+        ERR_clear_error();
+        const enum pgc_err err = pgc_buf_swrite(out, ssl, nbytes, &ssl_err);
+
+        SEL_ASSERT(err != PGC_ERR_OOB);
+
+        if(err == PGC_ERR_SSL) {
+                ssl_err = SSL_get_error(ssl, ssl_err);
+                switch(ssl_err) {
+                        case SSL_ERROR_WANT_READ: 
+                                return LAW_ERR_WNTR;
+                        case SSL_ERROR_WANT_WRITE:
+                                return LAW_ERR_WNTW;
+                        default:
+                                law_err_ssl_set(ssl_err);
+                                return LAW_ERR_SSL;
+                }
+        } else {
+                return err;
+        }
 }
 
 static sel_err_t law_ht_write_data(struct law_ht_conn *conn)
@@ -336,24 +446,19 @@ static sel_err_t law_ht_write_data(struct law_ht_conn *conn)
         struct pgc_buf *out = conn->out;
         const size_t base = pgc_buf_tell(out);
         const size_t end = pgc_buf_end(out);
-        const size_t rdy = end - base;
+        const size_t block = end - base;
 
         SEL_ASSERT(base <= end);
 
-        if(!rdy) {
+        if(!block) {
                 return LAW_ERR_OK;
-        }
-
-        enum pgc_err err = pgc_buf_write(out, conn->socket, rdy);
-
-        if(err == PGC_ERR_SYS) {
-                if(errno == EAGAIN || errno == EWOULDBLOCK) {
-                        return LAW_ERR_AGAIN;
-                } else {
-                        return LAW_ERR_SYS;
-                }
-        } else {
-                return err;
+        } else switch(conn->security) {
+                case LAW_HT_SSL:
+                        return law_ht_write_SSL(out, conn->ssl, block);
+                case LAW_HT_UNSECURED:
+                        return law_ht_write_sys(out, conn->socket, block);
+                default:
+                        return SEL_ABORT();
         }
 }
 
@@ -419,6 +524,16 @@ void law_ht_creq_destroy(struct law_ht_creq *request)
         free(request);
 }
 
+int law_ht_creq_socket(struct law_ht_creq *request)
+{
+        return request->conn.socket;
+}
+
+SSL *law_ht_creq_SSL(struct law_ht_creq *request)
+{
+        return request->conn.ssl;
+}
+
 struct pgc_buf *law_ht_creq_out(struct law_ht_creq *request)
 {
         return request->conn.out;
@@ -482,38 +597,53 @@ sel_err_t law_ht_creq_connect(
         return LAW_ERR_OK;
 }
 
-sel_err_t law_ht_creq_write_head(
+sel_err_t law_ht_creq_request_line(
         struct law_ht_creq *request,
-        enum law_ht_meth method,
+        const char *method,
         const char *target,
-        const size_t hcount,
-        const char *headers[][2])
+        const char *version)
 {
-        struct pgc_buf *buf = request->conn.out;
-        SEL_TRY_QUIETLY(pgc_buf_printf(buf, 
-                "%s %s HTTP/1.1\r\n",
-                law_ht_meth_str(method),
-                target));
-        for(size_t n = 0; n < hcount; ++n) {
-                SEL_TRY_QUIETLY(pgc_buf_printf(buf,
-                "%s: %s\r\n",
-                headers[n][0],
-                headers[n][1]));
-        }
-        SEL_TRY_QUIETLY(pgc_buf_put(buf, "\r\n", 2));
-        return LAW_ERR_OK;
+        return pgc_buf_printf(
+                request->conn.out, 
+                "%s %s %s\r\n",
+                method,
+                target,
+                version);
 }
 
-ssize_t law_ht_creq_write_data(struct law_ht_creq *request)
+sel_err_t law_ht_creq_header(
+        struct law_ht_creq *request,
+        const char *name,
+        const char *value)
+{
+        return pgc_buf_printf(
+                request->conn.out, 
+                "%s: %s\r\n",
+                name,
+                value);
+}
+
+sel_err_t law_ht_creq_body(struct law_ht_creq *request)
+{
+        return pgc_buf_put(request->conn.out, "\r\n", 2);
+}
+
+sel_err_t law_ht_creq_write_data(struct law_ht_creq *request)
 {
         return law_ht_write_data(&request->conn);
+}
+
+sel_err_t law_ht_creq_send(struct law_ht_creq *request)
+{
+        // FINISH ME!
+        return LAW_ERR_SYS;
 }
 
 /* status-line = HTTP-version SP status-code SP reason-phrase CRLF */
 
 sel_err_t law_ht_creq_read_head(
         struct law_ht_creq *request,
-        enum law_ht_vers *version,
+        const char **version,
         int *status,
         struct law_ht_hdrs **headers)
 {
@@ -527,25 +657,16 @@ sel_err_t law_ht_creq_read_head(
                 &request->conn, 
                 head_par, 
                 request->heap,
-                &request->scan,
                 &head));
 
-        const enum law_ht_vers version_d = law_ht_get_version(
-                pgc_ast_tostr(pgc_ast_at(head, 0)->val));
-        if(version_d == -1) {
-                return LAW_ERR_VERS;
-        }
-
-        const int status_d = (int)pgc_ast_touint32(pgc_ast_at(head, 1)->val);
+        *version = pgc_ast_tostr(pgc_ast_at(head, 0)->val);
+        *status = (int)pgc_ast_touint32(pgc_ast_at(head, 1)->val);
 
         *headers = pgc_stk_push(heap, sizeof(struct law_ht_hdrs));
         if(!(*headers)) {
                 return LAW_ERR_OOM;
         }
         (*headers)->list = pgc_ast_at(head, 2);
-
-        *version = version_d;
-        *status = status_d;
 
         return LAW_ERR_OK;
 }
@@ -567,12 +688,49 @@ struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *cfg)
 {
         struct law_ht_sctx *http = malloc(sizeof(struct law_ht_sctx));
         http->cfg = cfg;
+        http->ssl_context = NULL;
         return http;
 }
 
 void law_ht_sctx_destroy(struct law_ht_sctx *http)
 {
+        if(http->ssl_context) {
+                SSL_CTX_free(http->ssl_context);
+        }
         free(http);
+}
+
+sel_err_t law_ht_sctx_init(struct law_ht_sctx *http)
+{
+        ERR_clear_error();
+        SSL_CTX *context = SSL_CTX_new(TLS_server_method());
+        if(!context) {
+                return LAW_ERR_SSL;
+        }
+
+        ERR_clear_error();
+        int err = SSL_CTX_use_certificate_file(
+                context, 
+                http->cfg->certificate, 
+                SSL_FILETYPE_PEM);
+        if(err < 0) {
+                SSL_CTX_free(context);
+                return LAW_ERR_SSL;
+        }
+
+        ERR_clear_error();
+        err = SSL_CTX_use_PrivateKey_file(
+                context, 
+                http->cfg->private_key, 
+                SSL_FILETYPE_PEM);
+        if(err < 0) {
+                SSL_CTX_free(context);
+                return LAW_ERR_SSL;
+        }
+
+        http->ssl_context = context;
+
+        return LAW_ERR_OK;
 }
 
 sel_err_t law_ht_accept(
@@ -580,8 +738,8 @@ sel_err_t law_ht_accept(
         int socket,
         void *state)
 {
-        struct law_ht_sctx *http = state;
-        struct law_ht_sctx_cfg *cfg = http->cfg;
+        struct law_ht_sctx *context = state;
+        struct law_ht_sctx_cfg *cfg = context->cfg;
 
         const size_t in_length = cfg->in_length;
         const size_t in_guard = cfg->in_guard;
@@ -607,9 +765,10 @@ sel_err_t law_ht_accept(
         request.conn.out = &out;
         request.heap = &heap;
         request.conn.ssl = NULL;
-        request.scan = 0;
+        request.context = context;
+        request.conn.security = LAW_HT_UNSECURED;
 
-        sel_err_t error = http->cfg->handler(server, &request);
+        sel_err_t error = context->cfg->handler(server, &request);
         
         law_smem_destroy(heap_mem);
         law_smem_destroy(out_mem);
@@ -617,33 +776,6 @@ sel_err_t law_ht_accept(
 
         return error;
 }       
-
-const char *law_ht_meth_str(enum law_ht_meth meth)
-{
-        switch(meth) {
-                case LAW_HT_GET:        return "GET";
-                case LAW_HT_POST:       return "POST";
-                case LAW_HT_HEAD:       return "HEAD";
-                case LAW_HT_PUT:        return "PUT";
-                case LAW_HT_DELETE:     return "DELETE";
-                case LAW_HT_PATCH:      return "PATCH";
-                case LAW_HT_OPTIONS:    return "OPTIONS";
-                case LAW_HT_TRACE:      return "TRACE";
-                case LAW_HT_CONNECT:    return "CONNECT";
-                default: SEL_ABORT();
-        }
-        return NULL;
-}
-
-const char *law_ht_vers_str(enum law_ht_vers vers)
-{
-        switch(vers) {
-                case LAW_HT_1_1:        return "HTTP/1.1";
-                case LAW_HT_2:          return "HTTP/2";
-                default: SEL_ABORT();
-        }
-        return NULL;
-}
 
 const char *law_ht_status_str(const int code)
 {
@@ -698,7 +830,7 @@ const char *law_ht_status_str(const int code)
                 case 504: return "Gateway Timeout";
                 case 505: return "HTTP Version Not Supported";
 
-                default: return NULL;
+                default: return "Unknown HTTP Error";
         }
 }
 
