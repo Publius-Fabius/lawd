@@ -32,7 +32,7 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
 
         law_ht_sreq_add_header(req, "Content-Length", "3");
         law_ht_sreq_add_header(req, "Content-Type", "text/plain");
-        law_ht_sreq_body(req);
+        law_ht_sreq_begin_body(req);
 
         struct pgc_buf *out = law_ht_sreq_out(req);
         pgc_buf_put(out, "abc", 3);
@@ -43,7 +43,7 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
         }
 
         law_ht_sreq_ssl_shutdown(req);
-        law_ht_sreq_done(req);
+        law_ht_sreq_close(req);
 
         return LAW_ERR_OK;
 }
@@ -59,7 +59,7 @@ int main(int argc, char ** args)
         ctx_cfg.out_guard = 0x1000;
         ctx_cfg.heap_length = 0xF000;
         ctx_cfg.heap_guard = 0x1000;
-        ctx_cfg.handler = handler;
+        ctx_cfg.callback = handler;
         ctx_cfg.security = LAW_HT_SSL;
         ctx_cfg.certificate = "tmp/cert.pem";
         ctx_cfg.private_key = "tmp/key.pem";

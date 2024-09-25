@@ -2,6 +2,7 @@
 #include "lawd/server.h"
 #include "lawd/coroutine.h"
 #include "lawd/safemem.h"
+#include "lawd/time.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -11,12 +12,15 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <poll.h>
 
 enum law_srv_mode {
         LAW_SRV_READY           = 0,            /** Ready */
         LAW_SRV_SUSPENDED       = 1,            /** Suspended */
         LAW_SRV_RUNNING         = 2,            /** Running */
-        LAW_SRV_CLOSED          = 3             /** Closed */
+        LAW_SRV_CLOSED          = 3,            /** Closed */
+        LAW_SRV_YIELDING        = 4,            /** Coroutine Yielded */
+        LAW_SRV_AWAITING        = 5             /** Coroutine Awaited */
 };
 
 struct law_srv_conn {                           /** Network Connection */
@@ -26,6 +30,8 @@ struct law_srv_conn {                           /** Network Connection */
         struct law_smem *stack;                 /** Coroutine Stack */
         law_srv_call_t callback;                /** Coroutine callback */
         void *state;                            /** Coroutine user-state */
+        struct pollfd *pollfd;                  /** Polling Data */
+        int64_t expires;                        /** Await Expiration */
 };
 
 struct law_srv_pfds {
@@ -239,7 +245,7 @@ sel_err_t law_srv_yield(struct law_srv *server)
         return law_cor_yield(
                 server->caller, 
                 server->target->callee, 
-                LAW_ERR_YLD);
+                LAW_SRV_YIELDING);
 }
 
 struct pollfd *law_srv_lease(struct law_srv *s)
@@ -260,6 +266,34 @@ sel_err_t law_srv_spawn(
                 callback,
                 state);
         return SEL_ERR_OK;
+}
+
+sel_err_t law_srv_wait(
+        struct law_srv *server,
+        const int socket,
+        const int events,
+        int *revents,
+        int64_t timeout)
+{
+        struct law_srv_conn *conn = server->target;
+
+        conn->pollfd = law_srv_lease(server);
+        conn->pollfd->fd = socket;
+        conn->pollfd->events = (short)events;
+        conn->pollfd->revents = 0;
+      
+        conn->expires = law_time_millis() + timeout;
+
+        sel_err_t error = law_cor_yield(
+                server->caller, 
+                conn->callee, 
+                LAW_SRV_AWAITING);
+
+        if(revents) {
+                *revents = conn->pollfd->revents;
+        }
+      
+        return error;
 }
 
 static sel_err_t law_srv_listen(struct law_srv *s)
@@ -374,6 +408,28 @@ static sel_err_t law_srv_trampoline(
         return conn->callback(server, conn->socket, conn->state);
 }
 
+static sel_err_t law_srv_dispatch_await(
+        struct law_srv *srv,
+        struct law_srv_conn *conn,
+        const int64_t time)
+{
+        if(conn->pollfd->revents) {
+                conn->mode = LAW_SRV_RUNNING;
+                return law_cor_resume(srv->caller, conn->callee, LAW_ERR_OK);
+        } 
+
+        if(time > conn->expires) {
+                conn->mode = LAW_SRV_RUNNING;
+                return law_cor_resume(srv->caller, conn->callee, LAW_ERR_TTL);
+        }
+
+        struct pollfd *pollfd = law_srv_lease(srv);
+        memcpy(pollfd, conn->pollfd, sizeof(struct pollfd));
+        conn->pollfd = pollfd;
+
+        return LAW_SRV_AWAITING;
+}
+
 static sel_err_t law_srv_dispatch(struct law_srv *srv)
 {
         law_srv_conns_swap(srv);
@@ -384,13 +440,14 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
 
         struct law_srv_conns *conns1 = srv->conns[1];
 
+        int64_t time = law_time_millis();
+
         for(size_t n = 0; n < conns1->size; ++n) {
                 struct law_srv_conn *conn = conns1->array[n];
                 srv->target = conn;
                 sel_err_t err;
                 switch(conn->mode) {
                         case LAW_SRV_READY:
-                                /* Connection is ready to call accept. */
                                 conn->mode = LAW_SRV_RUNNING;
                                 err = law_cor_call(
                                         srv->caller,
@@ -399,28 +456,31 @@ static sel_err_t law_srv_dispatch(struct law_srv *srv)
                                         law_srv_trampoline,
                                         srv); 
                                 break;
-                        case LAW_SRV_SUSPENDED:
-                                /* Accept was previously suspended. */
+                        case LAW_SRV_YIELDING:
                                 conn->mode = LAW_SRV_RUNNING;
                                 err = law_cor_resume(
                                         srv->caller,
                                         conn->callee,
                                         LAW_ERR_OK);
                                 break;
+                        case LAW_SRV_AWAITING:
+                                err = law_srv_dispatch_await(
+                                        srv,
+                                        conn,
+                                        time);
+                                break;
                         default: SEL_ABORT();
                 }
                 switch(err) {
                         case SEL_ERR_OK:
-                                /* Accept finished. */
                                 law_srv_conn_destroy(conn);
                                 break;
-                        case LAW_ERR_YLD:
-                                /* Accept is suspended until later. */
-                                conn->mode = LAW_SRV_SUSPENDED;
+                        case LAW_SRV_YIELDING:
+                        case LAW_SRV_AWAITING:
+                                conn->mode = err;
                                 *law_srv_conns_take(srv->conns[0]) = conn;
                                 break;
                         default: 
-                                /* An error occurred. */
                                 law_srv_conn_destroy(conn);
                                 return err;
                 }

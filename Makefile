@@ -65,6 +65,22 @@ bin/test_coroutine : tests/lawd/coroutine.c \
 grind_test_coroutine : bin/test_coroutine
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
+# time.h
+build/lawd/time.o: source/lawd/time.c include/lawd/time.h 
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_time: tests/lawd/time.c \
+	build/lawd/time.o
+	$(CC) $(CFLAGS) -o $@ $^
+
+# log.h
+build/lawd/log.o: source/lawd/log.c include/lawd/log.h 
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_log: tests/lawd/log.c \
+	build/lawd/log.o \
+	build/lawd/time.o \
+	lib/libselc.a
+	$(CC) $(CFLAGS) -o $@ $^
+	
 # server.h
 build/lawd/server.o : source/lawd/server.c include/lawd/server.h 
 	$(CC) $(CFLAGS) -c -o $@ $<

@@ -26,9 +26,10 @@ struct law_ht_creq;
  * @param context The HTTP server context.
  * @return A possible error.
  */
-typedef sel_err_t (*law_ht_handler_t)(
+typedef sel_err_t (*law_ht_call_t)(
         struct law_srv *server,
-        struct law_ht_sreq *request);
+        struct law_ht_sreq *request,
+        void *state);
 
 /** Security Mode */
 enum law_ht_security{
@@ -44,7 +45,8 @@ struct law_ht_sctx_cfg {
         size_t out_guard;                       /** Output Buffer Guard */
         size_t heap_length;                     /** Heap Length */
         size_t heap_guard;                      /** Heap Guard */
-        law_ht_handler_t handler;               /** Request Handler */
+        law_ht_call_t callback;                 /** Request Callback */
+        void *state;                            /** User State */
         enum law_ht_security security;          /** Security Mode */
         const char *certificate;                /** Certificate File */
         const char *private_key;                /** Private Key File */
@@ -139,6 +141,7 @@ struct pgc_stk *law_ht_sreq_heap(struct law_ht_sreq *request);
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_SSL - SSL error.
+ * LAW_ERR_SYS - Syscall Error
  * LAW_ERR_OK - All OK.
  */
 sel_err_t law_ht_sreq_ssl_accept(struct law_ht_sreq *request);
@@ -150,6 +153,7 @@ sel_err_t law_ht_sreq_ssl_accept(struct law_ht_sreq *request);
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_SSL - SSL error.
+ * LAW_ERR_SYS - Syscall Error
  * LAW_ERR_OK - All OK.
  */
 sel_err_t law_ht_sreq_ssl_shutdown(struct law_ht_sreq *request);
@@ -210,6 +214,12 @@ sel_err_t law_ht_sreq_set_status(
 
 /**
  * Add a response header.
+ * @param request The request.
+ * @param field_name Return value pointing to the name.
+ * @param field_value Return value pointing to the value.
+ * @returns 
+ * LAW_ERR_OOB - Buffer is full.
+ * LAW_ERR_OK - All OK.
  */
 sel_err_t law_ht_sreq_add_header(
         struct law_ht_sreq *request,
@@ -223,7 +233,7 @@ sel_err_t law_ht_sreq_add_header(
  * LAW_ERR_OOB - Buffer is full.
  * LAW_ERR_OK - All OK.
  */
-sel_err_t law_ht_sreq_body(struct law_ht_sreq *request);
+sel_err_t law_ht_sreq_begin_body(struct law_ht_sreq *request);
 
 /**
  * Write data from the output buffer.
@@ -238,13 +248,13 @@ sel_err_t law_ht_sreq_body(struct law_ht_sreq *request);
 sel_err_t law_ht_sreq_write_data(struct law_ht_sreq *request);
 
 /**
- * Done writing response body.
+ * Close the request permanently.
  * @param request The server-side request.
  * @return 
  * LAW_ERR_OK 
  * LAW_ERR_SYS
  */
-sel_err_t law_ht_sreq_done(struct law_ht_sreq *request);
+sel_err_t law_ht_sreq_close(struct law_ht_sreq *request);
 
 /**
  * Create a new client-side request.
@@ -350,12 +360,12 @@ sel_err_t law_ht_creq_done(struct law_ht_creq *request);
 const char *law_ht_status_str(const int status_code);
 
 /** 
- * Create a new HTTP state. 
+ * Create a new HTTP context. 
  */
 struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *conf);
 
 /** 
- * Destroy HTTP state. 
+ * Destroy HTTP context. 
  */
 void law_ht_sctx_destroy(struct law_ht_sctx *http);
 

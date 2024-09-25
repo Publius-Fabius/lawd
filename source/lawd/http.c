@@ -158,9 +158,11 @@ sel_err_t law_ht_sreq_ssl_accept(struct law_ht_sreq *request)
                                 return LAW_ERR_WNTR;
                         case SSL_ERROR_WANT_WRITE:
                                 return LAW_ERR_WNTW;
+                        case SSL_ERROR_SYSCALL:
+                                SSL_free(ssl);
+                                return LAW_ERR_SYS;
                         default:
                                 SSL_free(ssl);
-                                law_err_ssl_set(ssl_err);
                                 return LAW_ERR_SSL;
                 }
         } else {
@@ -186,9 +188,11 @@ sel_err_t law_ht_sreq_ssl_shutdown(struct law_ht_sreq *request)
                                 return LAW_ERR_WNTR;
                         case SSL_ERROR_WANT_WRITE:
                                 return LAW_ERR_WNTW;
+                        case SSL_ERROR_SYSCALL:
+                                SSL_free(ssl);
+                                return LAW_ERR_SYS;
                         default:
                                 SSL_free(ssl);
-                                law_err_ssl_set(ssl_err);
                                 return LAW_ERR_SSL;
                 }
         } else {
@@ -217,8 +221,9 @@ static sel_err_t law_ht_read_SSL(
                                 return LAW_ERR_WNTR;
                         case SSL_ERROR_WANT_WRITE:
                                 return LAW_ERR_WNTW;
+                        case SSL_ERROR_SYSCALL:
+                                return LAW_ERR_SYS;
                         default:
-                                law_err_ssl_set(ssl_err);
                                 return LAW_ERR_SSL;
                 }
         } else {
@@ -318,7 +323,6 @@ static sel_err_t law_ht_read_head(
 
         err = pgc_lang_parse(parser, &lens, heap, head);
         if(err != PGC_ERR_OK) {
-                law_err_pgc_set(err);
                 return LAW_ERR_SYN;
         }
 
@@ -388,7 +392,7 @@ sel_err_t law_ht_sreq_add_header(
                 value);
 }
 
-sel_err_t law_ht_sreq_body(struct law_ht_sreq *request)
+sel_err_t law_ht_sreq_begin_body(struct law_ht_sreq *request)
 {
         return pgc_buf_put(request->conn.out, "\r\n", 2);
 }
@@ -432,8 +436,9 @@ static sel_err_t law_ht_write_SSL(
                                 return LAW_ERR_WNTR;
                         case SSL_ERROR_WANT_WRITE:
                                 return LAW_ERR_WNTW;
+                        case SSL_ERROR_SYSCALL:
+                                return LAW_ERR_SYS;
                         default:
-                                law_err_ssl_set(ssl_err);
                                 return LAW_ERR_SSL;
                 }
         } else {
@@ -467,7 +472,7 @@ sel_err_t law_ht_sreq_write_data(struct law_ht_sreq *request)
         return law_ht_write_data(&request->conn);
 }
 
-sel_err_t law_ht_sreq_done(struct law_ht_sreq *request)
+sel_err_t law_ht_sreq_close(struct law_ht_sreq *request)
 {
         close(request->conn.socket);
         return LAW_ERR_OK;
@@ -768,7 +773,10 @@ sel_err_t law_ht_accept(
         request.context = context;
         request.conn.security = LAW_HT_UNSECURED;
 
-        sel_err_t error = context->cfg->handler(server, &request);
+        sel_err_t error = context->cfg->callback(
+                server, 
+                &request, 
+                context->cfg->state);
         
         law_smem_destroy(heap_mem);
         law_smem_destroy(out_mem);

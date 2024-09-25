@@ -1,4 +1,4 @@
-# LAWD - Lightweight Asynchronous Web Development
+# LAWD - Lightweight API for Web Development
 
 A toolkit for developing lightweight web applications.  This package uses libpgenc (also hosted on this account) for expression parsing. 
 
