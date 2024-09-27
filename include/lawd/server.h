@@ -5,7 +5,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
-#include <sys/epoll.h>
+
+enum law_srv_poll {
+        LAW_SRV_PIN     = 1,                    /** Poll for Input */                       
+        LAW_SRV_POUT    = 1 << 1,               /** Poll for Output */
+        LAW_SRV_PHUP    = 1 << 2,               /** Poll for a Hangup */
+        LAW_SRV_PERR    = 1 << 3                /** Poll for an Error */
+};
 
 /** Network Protocol */
 enum law_srv_prot {
@@ -16,23 +22,31 @@ enum law_srv_prot {
         LAW_SRV_NONE    = 5                     /** No Protocol */
 };
 
-/** POSIX Network Server */
-struct law_srv;
+/** Network Server */
+struct law_server;
 
-/** Initialize Worker Thread */
-typedef sel_err_t (*law_srv_init_t)(
-        struct law_srv *server,
-        void *state);
+/** Worker Thread */
+struct law_worker;
 
-/** Server Coroutine Callback */
+/** Server Task (Coroutine) */
+struct law_task;
+
+/** Server Event */
+struct law_event {
+        struct law_task *task;
+        int socket;
+        int flags;
+};
+
+/** General Callback */
 typedef sel_err_t (*law_srv_call_t)(
-        struct law_srv *server, 
-        int socket,
+        struct law_worker *worker,
         void *state);
 
-/** Server Loop Callback */
-typedef sel_err_t (*law_srv_tick_t)(
-        struct law_srv *server,
+/** Accept Callback */
+typedef sel_err_t (*law_srv_accept_t)(
+        struct law_worker *worker, 
+        int socket,
         void *state);
 
 /** Server Configuration */
@@ -47,9 +61,9 @@ struct law_srv_cfg {
         uid_t uid;                              /** System User */
         gid_t gid;                              /** System Group */
         int workers;                            /** Number of Threads */
-        law_srv_init_t init;                    /** Initialize Worker */
-        law_srv_call_t accept;                  /** Accept Callback */
-        law_srv_tick_t tick;                    /** Tick Callback */
+        law_srv_call_t init;                    /** Worker Init */
+        law_srv_call_t tick;                    /** Tick Callback */
+        law_srv_accept_t accept;                /** Accept Callback */
         void *state;                            /** User State */
 };
 
@@ -58,27 +72,27 @@ struct law_srv_cfg {
  * @param config The server's configuration.
  * @return A newly allocated server.
  */
-struct law_srv *law_srv_create(struct law_srv_cfg *config);
+struct law_server *law_srv_create(struct law_srv_cfg *config);
 
 /** 
  * Destroy the server. 
  * @param server The server to destroy.
  */
-void law_srv_destroy(struct law_srv *server);
+void law_srv_destroy(struct law_server *server);
 
 /**
  * Get the server's socket.
  * @param server The server.
  * @return The server socket.
  */
-int law_srv_socket(struct law_srv *server);
+int law_srv_socket(struct law_server *server);
 
 /**
  * Start listening for connections and drop root privileges.
  * @param server The server to open.
  * @return A status code.
  */
-sel_err_t law_srv_open(struct law_srv *server);
+sel_err_t law_srv_open(struct law_server *server);
 
 /**
  * Close the server socket and release resources acquired by law_open. 
@@ -87,14 +101,14 @@ sel_err_t law_srv_open(struct law_srv *server);
  * @param server The server to close.
  * @return A status code.
  */
-sel_err_t law_srv_close(struct law_srv *server);
+sel_err_t law_srv_close(struct law_server *server);
 
 /** 
  * Start the server by entering its main loop.
  * @param server The server to start.
  * @return A status code.
  */
-sel_err_t law_srv_start(struct law_srv *server);
+sel_err_t law_srv_start(struct law_server *server);
 
 /**
  * Signal the server to stop.  Eventually the server will return from 
@@ -102,47 +116,53 @@ sel_err_t law_srv_start(struct law_srv *server);
  * @param server The server to suspend.
  * @return A status code.
  */
-sel_err_t law_srv_stop(struct law_srv *server);
+sel_err_t law_srv_stop(struct law_server *server);
+
+/**
+ * Get the active task.
+ */
+struct law_task *law_srv_active(struct law_worker *worker);
 
 /** 
- * Yield the current coroutine's execution environment back to the 
- * scheduler.
- * @param server The server.
- * @return A status code.
+ * Watch the socket.
  */
-sel_err_t law_srv_yield(struct law_srv *server);
+sel_err_t law_srv_watch(struct law_worker *worker, const int socket);
+
+/** 
+ * Unwatch the socket.
+ */
+sel_err_t law_srv_unwatch(struct law_worker *worker, const int socket);
 
 /**
  * Poll for socket events.
+ * @param worker The worker.
+ * @param socket The file descriptor.
+ * @param event The event.
+ * @param revents Bits representing active events.
  */
-sel_err_t law_srv_poll(
-        struct law_srv *server,
-        const int socket,
-        const int events,
-        int *revents);
+sel_err_t law_srv_poll(struct law_worker *worker, struct law_event *event);
 
 /**
- * Wait for IO events to occur or a certain ammount of time to elapse.
- * @param server The server.
+ * Yield the coroutine and wait for IO events to occur or a certain ammount 
+ * of time to elapse.
+ * @param worker The worker.
  * @param timeout How long to wait.
  * @returns 
  * LAW_ERR_TTL - The function timed out without an event.
  * LAW_ERR_OK - At least one event was encountered.
  */
-sel_err_t law_srv_wait(struct law_srv *server, int64_t timeout);
+sel_err_t law_srv_wait(struct law_worker *worker, int64_t timeout);
 
 /**
  * Spawn a new coroutine.
  * @param server The server
  * @param callback The callback to run within a new coroutine.
- * @param socket The socket to attach to this coroutine.
  * @param state The user defined state for the associated callback.
  * @return An error code.
  */
 sel_err_t law_srv_spawn(
-        struct law_srv *server,
+        struct law_server *server,
         law_srv_call_t callback,
-        const int socket,
         void *state);
 
 #endif

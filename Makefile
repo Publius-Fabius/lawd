@@ -1,8 +1,7 @@
 # LAWD Makefile
 
-CFLAGS = -g -std=c99 -pedantic -Wconversion -Wall -I include
+CFLAGS = -g -std=c11 -pedantic -Wconversion -Wall -I include
 CC = gcc
-
 
 ../selc/lib/libselc.a: 
 	make -C ../selc lib/libselc.a 
@@ -80,7 +79,27 @@ bin/test_log: tests/lawd/log.c \
 	build/lawd/time.o \
 	lib/libselc.a
 	$(CC) $(CFLAGS) -o $@ $^
-	
+
+# cqueue.h
+build/lawd/cqueue.o: source/lawd/cqueue.c include/lawd/cqueue.h includes
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_cqueue: tests/lawd/cqueue.c \
+	build/lawd/cqueue.o \
+	lib/libselc.a
+	$(CC) $(CFLAGS) -o $@ $^
+grind_test_cqueue : bin/test_cqueue
+	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
+
+# pqueue.h
+build/lawd/pqueue.o: source/lawd/pqueue.c include/lawd/pqueue.h includes
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_pqueue: tests/lawd/pqueue.c \
+	build/lawd/pqueue.o \
+	lib/libselc.a
+	$(CC) $(CFLAGS) -o $@ $^
+grind_test_pqueue : bin/test_pqueue
+	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
+
 # server.h
 build/lawd/server.o : source/lawd/server.c include/lawd/server.h 
 	$(CC) $(CFLAGS) -c -o $@ $<

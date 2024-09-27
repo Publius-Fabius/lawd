@@ -17,7 +17,7 @@ sel_err_t law_log_access(
         const size_t content_length);
 
 /**
- * [datetime] pid package "message"
+ * [datetime] pid tid package "message"
  */
 sel_err_t law_log_error(
         FILE *stream,
@@ -25,7 +25,7 @@ sel_err_t law_log_error(
         const char *message);
 
 /**
- * ip-address [datetime] pid package "message"
+ * ip-address [datetime] pid tid package "message"
  */
 sel_err_t law_log_error_ip(
         FILE *stream,

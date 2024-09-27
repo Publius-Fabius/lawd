@@ -22,7 +22,7 @@ sel_err_t accepter(struct law_srv *srv, int socket, void *state)
         pfd->events |= POLLIN;
         pfd->fd = socket;
 
-        law_srv_yield(srv);
+        law_srv_wait(srv);
         puts("reentering");
 
         ssize_t len = read(socket, buf, 4096);

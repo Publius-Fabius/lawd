@@ -21,7 +21,7 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
         }
 
         for(int x = 0; x < 2; ++x) {
-                law_srv_yield(srv);
+                law_srv_wait(srv);
         }
 
         law_ht_sreq_set_status(
@@ -39,7 +39,7 @@ sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
         
         for(int x = 0; x < 2; ++x) {
                 law_ht_sreq_write_data(req);
-                law_srv_yield(srv);
+                law_srv_wait(srv);
         }
 
         law_ht_sreq_ssl_shutdown(req);
