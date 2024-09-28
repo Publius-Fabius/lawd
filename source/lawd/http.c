@@ -739,7 +739,7 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *http)
 }
 
 sel_err_t law_ht_accept(
-        struct law_srv *server,
+        struct law_server *server,
         int socket,
         void *state)
 {

@@ -38,16 +38,28 @@ struct law_event {
         int flags;
 };
 
+/** User Data */
+struct law_user_data {
+        union {
+                void *ptr;
+                int fd;
+                uint64_t u64;
+                uint32_t u32;
+                int64_t i64;
+                int32_t i32;
+        } u;
+};
+
 /** General Callback */
 typedef sel_err_t (*law_srv_call_t)(
         struct law_worker *worker,
-        void *state);
+        struct law_user_data *data);
 
 /** Accept Callback */
 typedef sel_err_t (*law_srv_accept_t)(
         struct law_worker *worker, 
         int socket,
-        void *state);
+        struct law_user_data *data);
 
 /** Server Configuration */
 struct law_srv_cfg {                            
@@ -60,11 +72,11 @@ struct law_srv_cfg {
         size_t stack_guard;                     /** Stack Guards */
         uid_t uid;                              /** System User */
         gid_t gid;                              /** System Group */
-        int workers;                            /** Number of Threads */
+        unsigned int workers;                   /** Number of Threads */
         law_srv_call_t init;                    /** Worker Init */
         law_srv_call_t tick;                    /** Tick Callback */
         law_srv_accept_t accept;                /** Accept Callback */
-        void *state;                            /** User State */
+        struct law_user_data *data;             /** User Data */
 };
 
 /** 
@@ -157,12 +169,12 @@ sel_err_t law_srv_wait(struct law_worker *worker, int64_t timeout);
  * Spawn a new coroutine.
  * @param server The server
  * @param callback The callback to run within a new coroutine.
- * @param state The user defined state for the associated callback.
+ * @param data The user defined data for the associated callback.
  * @return An error code.
  */
 sel_err_t law_srv_spawn(
         struct law_server *server,
         law_srv_call_t callback,
-        void *state);
+        struct law_user_data *data);
 
 #endif

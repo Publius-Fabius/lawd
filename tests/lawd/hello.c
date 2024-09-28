@@ -4,13 +4,13 @@
 #include "lawd/http.h"
 #include "openssl/err.h"
 
-sel_err_t looper(struct law_srv *srv, void *st) 
+sel_err_t looper(struct law_server *srv, void *st) 
 {
       //  puts("looper");
         return LAW_ERR_OK;
 }
 
-sel_err_t handler(struct law_srv *srv, struct law_ht_sreq *req)
+sel_err_t handler(struct law_server *srv, struct law_ht_sreq *req)
 {
         sel_err_t err = law_ht_sreq_ssl_accept(req);
         if(err == LAW_ERR_SSL) {
@@ -86,8 +86,8 @@ int main(int argc, char ** args)
         srv_cfg.maxconns = 10;
         srv_cfg.tick = looper;
         srv_cfg.accept = law_ht_accept;
-        srv_cfg.state = ctx;
-        struct law_srv *srv = law_srv_create(&srv_cfg);
+        srv_cfg.data = ctx;
+        struct law_server *srv = law_srv_create(&srv_cfg);
         
         err = law_srv_open(srv);
         if(err != LAW_ERR_OK) {

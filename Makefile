@@ -109,6 +109,9 @@ bin/test_server : tests/lawd/server.c \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/safemem.o \
+	build/lawd/pqueue.o \
+	build/lawd/cqueue.o \
+	build/lawd/time.o \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 grind_test_server : bin/test_server
@@ -180,8 +183,9 @@ suite: \
 	grind_test_error \
 	grind_test_safemem \
 	grind_test_coroutine \
-	grind_test_server \
-	grind_test_util
+	grind_test_cqueue \
+	grind_test_pqueue \
+	grind_test_server 
 
 tmp/key.pem:
 	openssl genrsa -out $@

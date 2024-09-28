@@ -13,19 +13,27 @@ void test_enq_deq()
         law_cq_enq(q, &y);
         law_cq_enq(q, &z);
 
-        SEL_TEST(&x == law_cq_deq(q));
-        SEL_TEST(&y == law_cq_deq(q));
-        SEL_TEST(&z == law_cq_deq(q));
-        SEL_TEST(NULL == law_cq_deq(q));
+        void *v;
+
+        SEL_TEST(law_cq_deq(q, &v));
+        SEL_TEST(v == &x);
+        SEL_TEST(law_cq_deq(q, &v));
+        SEL_TEST(v == &y);
+        SEL_TEST(law_cq_deq(q, &v));
+        SEL_TEST(v == &z);
+        SEL_TEST(!law_cq_deq(q, &v));
 
         law_cq_enq(q, &x);
         law_cq_enq(q, &y);
         law_cq_enq(q, &z);
 
-        SEL_TEST(&x == law_cq_deq(q));
-        SEL_TEST(&y == law_cq_deq(q));
-        SEL_TEST(&z == law_cq_deq(q));
-        SEL_TEST(NULL == law_cq_deq(q));
+        SEL_TEST(law_cq_deq(q, &v));
+        SEL_TEST(v == &x);
+        SEL_TEST(law_cq_deq(q, &v));
+        SEL_TEST(v == &y);
+        SEL_TEST(law_cq_deq(q, &v));
+        SEL_TEST(v == &z);
+        SEL_TEST(!law_cq_deq(q, &v));
 
         law_cq_destroy(q);
 }

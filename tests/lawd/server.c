@@ -1,173 +1,95 @@
 
 #include "lawd/server.h"
 
-struct law_srv_pfds;
+struct law_tasks;
+struct law_tasks *law_tasks_create();
+void law_tasks_destroy(struct law_tasks *ts);
+struct law_tasks *law_tasks_reset(struct law_tasks *ts);
+struct law_tasks *law_tasks_grow(struct law_tasks *ts);
+size_t law_tasks_size(struct law_tasks *ts);
+struct law_task **law_tasks_array(struct law_tasks *ts);
+struct law_tasks *law_tasks_add(struct law_tasks *ts, struct law_task *t);
+struct law_worker *law_worker_create(
+        struct law_server *s, const unsigned int id);
+void law_worker_destroy(struct law_worker *w);
+struct law_task *law_task_create(
+        law_srv_call_t callback,
+        struct law_user_data *data,
+        const size_t stack_length,
+        const size_t stack_guard);
+void law_task_destroy(struct law_task *task);
 
-struct law_srv_pfds *law_srv_pfds_create();
-
-void law_srv_pfds_destroy(struct law_srv_pfds *ps);
-
-struct law_srv_pfds *law_srv_pfds_grow(struct law_srv_pfds *ps);
-
-struct pollfd *law_srv_pfds_take(struct law_srv_pfds *ps);
-
-struct law_srv_pfds *law_srv_pfds_reset(struct law_srv_pfds *ps);
-
-size_t law_srv_pfds_size(struct law_srv_pfds *ps);
-
-size_t law_srv_pfds_capacity(struct law_srv_pfds *ps);
-
-struct pollfd *law_srv_pfds_array(struct law_srv_pfds *ps);
-
-struct law_srv_conn;
-
-struct law_srv_conns *law_srv_conns_create();
-
-void law_srv_conns_destroy(struct law_srv_conns *cs);
-
-struct law_srv_conns *law_srv_conns_grow(struct law_srv_conns *cs);
-
-struct law_srv_conn **law_srv_conns_take(struct law_srv_conns *cs);
-
-struct law_srv_conns *law_srv_conns_reset(struct law_srv_conns *cs);
-
-size_t law_srv_conns_size(struct law_srv_conns *cs);
-
-size_t law_srv_conns_capacity(struct law_srv_conns *cs);
-
-struct law_srv_conn ** law_srv_conns_array(struct law_srv_conns *cs);
-
-void test_pfds()
+void test_tasks()
 {
         SEL_INFO();
-        struct law_srv_pfds *pfds = law_srv_pfds_create();
+        struct law_tasks *tasks = law_tasks_create();
 
-        SEL_TEST(law_srv_pfds_capacity(pfds) == 1);
-        SEL_TEST(law_srv_pfds_size(pfds) == 0);
-        
-        struct pollfd *pfd = law_srv_pfds_take(pfds);
-        SEL_TEST(pfd->fd == 0);
-        SEL_TEST(pfd->events == 0);
-        SEL_TEST(pfd->revents == 0);
-        pfd->fd = 1;
-        pfd->events = 2;
-        pfd->revents = 3;
-        SEL_TEST(law_srv_pfds_size(pfds) == 1);
+        law_tasks_add(tasks, (struct law_task*)0);
+        SEL_TEST(law_tasks_size(tasks) == 1);
+        law_tasks_add(tasks, (struct law_task*)1);
+        SEL_TEST(law_tasks_size(tasks) == 2);
+        law_tasks_add(tasks, (struct law_task*)2);
+        SEL_TEST(law_tasks_size(tasks) == 3);
 
-        pfd = law_srv_pfds_take(pfds);
-        SEL_TEST(pfd->fd == 0);
-        SEL_TEST(pfd->events == 0);
-        SEL_TEST(pfd->revents == 0);
-        pfd->fd = 4;
-        pfd->events = 5;
-        pfd->revents = 6;
-        SEL_TEST(law_srv_pfds_size(pfds) == 2);
+        for(size_t x = 0; x < 3; ++x) {
+                SEL_TEST(law_tasks_array(tasks)[x] == (struct law_task*)x);
+        }
 
-        pfd = law_srv_pfds_take(pfds);
-        SEL_TEST(pfd->fd == 0);
-        SEL_TEST(pfd->events == 0);
-        SEL_TEST(pfd->revents == 0);
-        pfd->fd = 7;
-        pfd->events = 8;
-        pfd->revents = 9;
-        SEL_TEST(law_srv_pfds_size(pfds) == 3);
+        law_tasks_reset(tasks);
+        SEL_TEST(law_tasks_size(tasks) == 0);
+        for(size_t x = 0; x < 3; ++x) {
+                SEL_TEST(law_tasks_array(tasks)[x] == (struct law_task*)0);
+        }
 
-        pfd = law_srv_pfds_array(pfds);
-        SEL_TEST(pfd->fd == 1);
-        SEL_TEST(pfd->events == 2);
-        SEL_TEST(pfd->revents == 3);
-
-        pfd = law_srv_pfds_array(pfds) + 1;
-        SEL_TEST(pfd->fd == 4);
-        SEL_TEST(pfd->events == 5);
-        SEL_TEST(pfd->revents == 6);
-
-        pfd = law_srv_pfds_array(pfds) + 2;
-        SEL_TEST(pfd->fd == 7);
-        SEL_TEST(pfd->events == 8);
-        SEL_TEST(pfd->revents == 9);
-
-        law_srv_pfds_reset(pfds);
-        SEL_TEST(law_srv_pfds_capacity(pfds) == 4);
-        SEL_TEST(law_srv_pfds_size(pfds) == 0);
-
-        pfd = law_srv_pfds_take(pfds);
-        SEL_TEST(pfd->fd == 0);
-        SEL_TEST(pfd->events == 0);
-        SEL_TEST(pfd->revents == 0);
-
-        law_srv_pfds_destroy(pfds);
+        law_tasks_destroy(tasks);
 }
 
-void test_conns()
+void test_worker()
 {
         SEL_INFO();
-
-        struct law_srv_conns *cs = law_srv_conns_create();
-
-        SEL_TEST(law_srv_conns_size(cs) == 0);
-        SEL_TEST(law_srv_conns_capacity(cs) == 1);
-
-        void **ptr = (void**)law_srv_conns_take(cs);
-        SEL_TEST(*ptr == NULL);
-        *ptr = (void*)1;
-        SEL_TEST(law_srv_conns_size(cs) == 1);
-        SEL_TEST(law_srv_conns_capacity(cs) == 1);
-
-        ptr = (void**)law_srv_conns_take(cs);
-        SEL_TEST(*ptr == NULL);
-        *ptr = (void*)2;
-        SEL_TEST(law_srv_conns_size(cs) == 2);
-        SEL_TEST(law_srv_conns_capacity(cs) == 2);
-
-        ptr = (void**)law_srv_conns_take(cs);
-        SEL_TEST(*ptr == NULL);
-        *ptr = (void*)3;
-        SEL_TEST(law_srv_conns_size(cs) == 3);
-        SEL_TEST(law_srv_conns_capacity(cs) == 4);
-
-        intptr_t *iptr = (intptr_t*)law_srv_conns_array(cs);
-        SEL_TEST(iptr[0] == 1);
-        SEL_TEST(iptr[1] == 2);
-        SEL_TEST(iptr[2] == 3);
-
-        law_srv_conns_reset(cs);
-        SEL_TEST(law_srv_conns_size(cs) == 0);
-        SEL_TEST(law_srv_conns_capacity(cs) == 4);
-
-        ptr = (void**)law_srv_conns_take(cs);
-        SEL_TEST(law_srv_conns_size(cs) == 1);
-        SEL_TEST(law_srv_conns_capacity(cs) == 4);
-        SEL_TEST(*ptr == NULL);
-
-        law_srv_conns_destroy(cs);
+        struct law_worker *worker = law_worker_create(NULL, 0);
+        law_worker_destroy(worker);
 }
 
-void test_create()
+void test_srv_create()
 {
         SEL_INFO();
-        
-        static struct law_srv_cfg cfg;
-        cfg.backlog = 10;
-        cfg.gid = 1000;
-        cfg.uid = 1000;
-        cfg.stack_guard = 0x1000;
-        cfg.stack_length = 0x100000;
-        cfg.protocol = LAW_SRV_TCP;
-        cfg.timeout = 5000;
-        cfg.port = 80;
-        cfg.maxconns = 10;
-        cfg.tick = NULL;
-        cfg.accept = NULL;
+        struct law_srv_cfg cfg;
 
-        struct law_srv *srv = law_srv_create(&cfg);
-        law_srv_destroy(srv);
+        cfg.workers = 0;
+        struct law_server *server = law_srv_create(&cfg);
+        SEL_TEST(!server);
+        law_srv_destroy(server);
+        
+        cfg.workers = 0xFFFFFF;
+        server = law_srv_create(&cfg);
+        SEL_TEST(!server);
+        law_srv_destroy(server);
+
+        cfg.workers = 1;
+        server = law_srv_create(&cfg);
+        SEL_TEST(server);
+
+        law_srv_destroy(server);
+}
+
+void test_task_create()
+{
+        SEL_INFO();
+
+        struct law_user_data d;
+        d.u.u32 = 123;
+
+        struct law_task *task = law_task_create(NULL, &d, 4096, 4096);
+
+        law_task_destroy(task);
 }
 
 int main(int argc, char **args)
 {
         SEL_INFO();
-        test_pfds();
-        test_conns();
-        test_create();
+        test_tasks();
+        test_worker();
+        test_srv_create();
+        test_task_create();
 }

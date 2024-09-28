@@ -23,9 +23,13 @@ struct law_cqueue *law_cq_create()
         if(!queue) {
                 return NULL;
         }
+        
         queue->head = queue->tail = NULL;
         queue->size = 0;
+
+        /* pthread_mutex_init always returns 0 */
         pthread_mutex_init(&queue->mutex, NULL);
+
         return queue;
 }
 

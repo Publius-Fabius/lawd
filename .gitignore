@@ -1,2 +1,5 @@
 
 .vscode/
+tmp/cert.pem 
+tmp/csr.pem
+tmp/key.pem

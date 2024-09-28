@@ -27,7 +27,7 @@ struct law_ht_creq;
  * @return A possible error.
  */
 typedef sel_err_t (*law_ht_call_t)(
-        struct law_srv *server,
+        struct law_server *server,
         struct law_ht_sreq *request,
         void *state);
 
@@ -382,7 +382,7 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *context);
  * Entry function for HTTP functionality.
  */
 sel_err_t law_ht_accept(
-        struct law_srv *server,
+        struct law_server *server,
         int socket,
         void *state);
 

@@ -6,13 +6,13 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-sel_err_t looper(struct law_srv *srv, void *state)
+sel_err_t looper(struct law_server *srv, void *state)
 {
         SEL_INFO();
         return SEL_ERR_OK;
 }
 
-sel_err_t accepter(struct law_srv *srv, int socket, void *state)
+sel_err_t accepter(struct law_server *srv, int socket, void *state)
 {
         SEL_INFO();
 
@@ -66,7 +66,7 @@ int main(int argc, char ** argv)
         cfg.tick = looper;
         cfg.accept = accepter;
 
-        struct law_srv *srv = law_srv_create(&cfg);
+        struct law_server *srv = law_srv_create(&cfg);
 
         sel_err_t err = law_srv_open(srv);
         if(err != SEL_ERR_OK) {
