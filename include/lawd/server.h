@@ -33,11 +33,11 @@ struct law_worker;
 /** Server Task (Coroutine) */
 struct law_task;
 
-/** Server Event */
+/** Server IO Event */
 struct law_event {
-        struct law_task *task;
-        int socket;
-        int flags;
+        struct law_task *task;          /** The task the event belongs to. */
+        int fd;                         /** The event's file descriptor */
+        int flags;                      /** Event flags in and out. */
 };
 
 /** General Callback */
@@ -119,17 +119,17 @@ sel_err_t law_srv_stop(struct law_server *server);
 struct law_task *law_srv_active(struct law_worker *worker);
 
 /** 
- * Watch the socket.
+ * Watch the file descriptor.
  */
-sel_err_t law_srv_watch(struct law_worker *worker, const int socket);
+sel_err_t law_srv_watch(struct law_worker *worker, const int fd);
 
 /** 
- * Unwatch the socket.
+ * Unwatch the file descriptor.
  */
-sel_err_t law_srv_unwatch(struct law_worker *worker, const int socket);
+sel_err_t law_srv_unwatch(struct law_worker *worker, const int fd);
 
 /**
- * Poll for socket events.
+ * Request one shot event notification.
  */
 sel_err_t law_srv_poll(struct law_worker *worker, struct law_event *event);
 

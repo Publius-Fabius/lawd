@@ -18,7 +18,7 @@ A toolkit for developing lightweight web applications.  This package uses libpge
 **Server Architecture**
 
 The server uses a multi-threaded model with coroutines.  A single thread 
-accepts new socket connections, enqueueing a thread safe channel with a task.  
+accepts new socket connections, enqueueing a thread safe channel with a task. 
 Any waiting worker threads are notified, dequeueing the task and dispatching 
 it within a new coroutine environment with its own execution stack.  Each 
 worker thread has its own internal scheduler for managing multiple coroutines 

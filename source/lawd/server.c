@@ -67,7 +67,7 @@ struct law_worker {
         struct law_tasks *ready;
         struct law_task *active;
         int epfd;
-        unsigned int id;
+        int id;
         struct epoll_event *events;
 };
 
@@ -173,7 +173,7 @@ struct law_worker *law_worker_create(
 
         const int events_size = server->cfg->event_buffer;
 
-        struct law_worker *w = aligned_alloc(4096, sizeof(struct law_worker));
+        struct law_worker *w = malloc(sizeof(struct law_worker));
         if(!w) {
                 return NULL;
         }
@@ -424,7 +424,7 @@ sel_err_t law_srv_poll(struct law_worker *w, struct law_event *lev)
         struct epoll_event eev;
         eev.data.ptr = lev;
         eev.events = law_event_to_epoll(lev->flags) | EPOLLONESHOT;
-        SEL_IO_QUIETLY(epoll_ctl(w->epfd, EPOLL_CTL_MOD, lev->socket, &eev));
+        SEL_IO_QUIETLY(epoll_ctl(w->epfd, EPOLL_CTL_MOD, lev->fd, &eev));
         return LAW_ERR_OK;
 }
 

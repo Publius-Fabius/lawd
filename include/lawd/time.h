@@ -17,14 +17,11 @@ struct law_time_dtb {
 
 /**
  * Get the current time, in milliseconds, since the last epoch.
- * @return The current time.
  */
 law_time_t law_time_millis();
 
 /**
  * Get a string representing the current datetime in UTC.
- * @param buffer A buffer large enough to hold the whole string.
- * @return A string representing the current time.
  */
 char *law_time_datetime(struct law_time_dtb *buffer);
 
