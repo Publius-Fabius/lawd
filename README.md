@@ -11,22 +11,23 @@ A toolkit for developing lightweight web applications.  This package uses libpge
 - lawd/pqueue.h - A priority queue for timer events.
 - lawd/log.h - Simple logging procedures.
 - lawd/time.h - Simple time procedures.
-- lawd/server.h - A protocol agnostic non-blocking server with coroutines.
+- lawd/server.h - A multi-threaded server with non-blocking IO and coroutines.
 - lawd/uri.h - URI parsing and data extraction.
 - lawd/http.h - HTTP message parsing and client/server functionality.
 
 **Server Architecture**
 
-The server uses a multi-threaded model with coroutines.  A single thread
-accepts new socket connections, enqueueing a thread safe channel with a 
-task.  Any waiting worker threads are notified, dequeueing the task and
-dispatching it within a new coroutine environment with its own execution 
-stack. For socket event notification, the epoll system call is used. 
-Timeouts are managed with an efficient binary heap based priority queue.
+The server uses a multi-threaded model with coroutines.  A single thread 
+accepts new socket connections, enqueueing a thread safe channel with a task.  
+Any waiting worker threads are notified, dequeueing the task and dispatching 
+it within a new coroutine environment with its own execution stack.  Each 
+worker thread has its own internal scheduler for managing multiple coroutines 
+at once. For socket event notification, the epoll system call is used, and
+timeouts are managed with an efficient binary heap based priority queue.
 
 **Example**
 
-An example of a simple ping server over TCP.
+Host a simple ping server over TCP.  The code is available at tests/lawd/ping.c.
 
 ```
 mkdir ~/clones
