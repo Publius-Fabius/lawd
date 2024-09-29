@@ -101,7 +101,7 @@ grind_test_pqueue : bin/test_pqueue
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # server.h
-build/lawd/server.o : source/lawd/server.c include/lawd/server.h 
+build/lawd/server.o : source/lawd/server.c include/lawd/server.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 bin/test_server : tests/lawd/server.c \
 	build/lawd/error.o \
@@ -117,13 +117,16 @@ bin/test_server : tests/lawd/server.c \
 grind_test_server : bin/test_server
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
-# echo server 
-bin/echo: tests/lawd/echo.c \
+# ping server 
+bin/ping: tests/lawd/ping.c \
 	build/lawd/error.o \
 	build/lawd/server.o \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/safemem.o \
+	build/lawd/pqueue.o \
+	build/lawd/cqueue.o \
+	build/lawd/time.o \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 
@@ -207,6 +210,6 @@ clean:
 	rm include/pgenc || true 
 	rm include/selc || true
 	rm bin/pgenc || true
-	rm bin/echo || true 
+	rm bin/ping || true 
 	rm bin/hello || true
 	

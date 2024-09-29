@@ -1,16 +1,16 @@
 #ifndef LAWD_CQUEUE_H
 #define LAWD_CQUEUE_H
 
-/** Concurrent Queue */
+/** Thread Safe Queue */
 struct law_cqueue;
 
 /** 
- * Create a new concurrent queue.
+ * Create a new thread safe queue.
  */
 struct law_cqueue *law_cq_create();
 
 /**
- * Destroy the concurrent queue.
+ * Destroy the thread safe queue.
  */
 void law_cq_destroy(struct law_cqueue *queue);
 
