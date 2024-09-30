@@ -38,4 +38,12 @@ sel_err_t law_wd_done(
         struct law_webd *server,
         struct law_ht_sreq *request);
 
+/**
+ * Accept the request.
+ */
+sel_err_t law_wd_accept(
+        struct law_server *server,
+        struct law_ht_sreq *request,
+        struct law_data *data);
+
 #endif

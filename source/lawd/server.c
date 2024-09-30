@@ -515,9 +515,10 @@ static sel_err_t law_worker_dispatch(struct law_worker *worker)
                         /* Task should be in the timer set. */
                         task->mode = LAW_SRV_YIELDED;
                         task->mark = 0;
-                } if(sig == LAW_ERR_OK) {
+                } else if(sig == LAW_ERR_OK) {
                         law_task_destroy(task);
                 } else {
+                        SEL_REPORT(sig);
                         law_task_destroy(task);
                         return sig;
                 }
@@ -531,28 +532,37 @@ static sel_err_t law_worker_dispatch(struct law_worker *worker)
 static sel_err_t law_worker_pump(struct law_worker *worker)
 {
         struct law_server *server = worker->server;
-        FILE *errors = server->cfg->errors;
+        FILE *errs = server->cfg->errors;
+        struct law_cqueue *channel = server->channel;
+        struct law_pqueue *timers = worker->timers;
+        struct epoll_event *events = worker->events;
 
         int64_t timeout = server->cfg->timeout;
-        int64_t min_timer;
-        if(law_pq_peek(worker->timers, NULL, &min_timer)) {
-                const int64_t current_time = law_time_millis();
-                const int64_t diff = min_timer - current_time;
-                if(min_timer < current_time) {
-                        timeout = 0;
-                } else {
-                        timeout = timeout < diff ? timeout : diff;
+        int64_t min_timer, now;
+
+        struct law_task *task;
+
+        if(!law_cq_size(channel)) {
+                if(law_pq_peek(timers, NULL, &min_timer)) {
+                        now = law_time_millis();
+                        if(min_timer <= now) {
+                                timeout = 0;
+                        } else {
+                                const int64_t wake = min_timer - now;
+                                timeout = timeout < wake ? timeout : wake;
+                        }
                 }
+        } else {
+                timeout = 0;
         }
 
-        struct epoll_event *events = worker->events;
         const int event_cnt = epoll_wait(
                 worker->epfd, 
                 events, 
                 server->cfg->event_buffer, 
                 (int)timeout);
         if(event_cnt < 0) {
-                return SEL_FREPORT(errors, LAW_ERR_SYS);
+                return SEL_FREPORT(errs, LAW_ERR_SYS);
         }
 
         struct law_tasks *ready = worker->ready;
@@ -569,22 +579,22 @@ static sel_err_t law_worker_pump(struct law_worker *worker)
                 }
         }
 
-        struct law_pqueue *timers = worker->timers;
-        struct law_task *task;
-        const int64_t current_time = law_time_millis();
-        
+        now = law_time_millis();
+
         while(law_pq_peek(timers, (void**)&task, &min_timer)) {
-                if(min_timer < current_time) {
-                        law_tasks_add(ready, task);
+                if(min_timer <= now) {
                         law_pq_pop(timers);
+                        if(!law_tasks_add(ready, task)) {
+                                return SEL_FREPORT(errs, LAW_ERR_OOM);
+                        }
                 } else {
                         break;
                 }
         }
 
-        for(int x = 0; law_cq_deq(server->channel, (void**)&task); ++x) {
-                if(!law_tasks_add(worker->ready, task)) {
-                        return SEL_FREPORT(errors, LAW_ERR_OOM);
+        for(int x = 0; law_cq_deq(channel, (void**)&task); ++x) {
+                if(!law_tasks_add(ready, task)) {
+                        return SEL_FREPORT(errs, LAW_ERR_OOM);
                 } else if(x == LAW_TASK_CHUNK) {
                         break;
                 }

@@ -30,6 +30,8 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data *data)
                 "Content-Type: text/plain\r\n"
                 "Content-Length: 4\r\n\r\n");
 
+        law_srv_wait(w, 1000);
+        
         write(sock, out, (size_t)olen);
         write(sock, "pong", 4);
 
