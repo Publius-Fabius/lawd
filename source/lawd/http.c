@@ -1,4 +1,3 @@
-
 #define _POSIX_C_SOURCE 200112L
 
 #include "lawd/http.h"
@@ -331,32 +330,31 @@ static sel_err_t law_ht_read_head(
 
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
-        const char **method,
-        struct law_uri *target,
-        const char **version,
-        struct law_ht_hdrs **headers)
+        struct law_ht_reqhead *head)
 {
         struct pgc_stk *heap = request->heap;
         struct law_ht_parsers *dict = law_ht_parsers_link();
         struct pgc_par *head_par = law_ht_parsers_request_head(dict);
 
-        struct pgc_ast_lst *head;
+        struct pgc_ast_lst *list;
 
         SEL_TRY_QUIETLY(law_ht_read_head(
                 &request->conn, 
                 head_par, 
                 request->heap,
-                &head));
+                &list));
 
-        *method = pgc_ast_tostr(pgc_ast_at(head, 0)->val);
-        law_uri_from_ast(target, pgc_ast_tolst(pgc_ast_at(head, 1)->val));
-        *version = pgc_ast_tostr(pgc_ast_at(head, 2)->val);
+        head->method = pgc_ast_tostr(pgc_ast_at(list, 0)->val);
+        law_uri_from_ast(
+                &head->target, 
+                pgc_ast_tolst(pgc_ast_at(list, 1)->val));
+        head->version = pgc_ast_tostr(pgc_ast_at(list, 2)->val);
 
-        *headers = pgc_stk_push(heap, sizeof(struct law_ht_hdrs));
-        if(!(*headers)) {
+        head->headers = pgc_stk_push(heap, sizeof(struct law_ht_hdrs));
+        if(!head->headers) {
                 return LAW_ERR_OOM;
         }
-        (*headers)->list = pgc_ast_at(head, 3);
+        head->headers->list = pgc_ast_at(list, 3);
 
         return LAW_ERR_OK;
 }
@@ -648,30 +646,28 @@ sel_err_t law_ht_creq_send(struct law_ht_creq *request)
 
 sel_err_t law_ht_creq_read_head(
         struct law_ht_creq *request,
-        const char **version,
-        int *status,
-        struct law_ht_hdrs **headers)
+        struct law_ht_reshead *head)
 {
         struct pgc_stk *heap = request->heap;
         struct law_ht_parsers *dict = law_ht_parsers_link();
         struct pgc_par *head_par = law_ht_parsers_response_head(dict);
 
-        struct pgc_ast_lst *head;
+        struct pgc_ast_lst *list;
 
         SEL_TRY_QUIETLY(law_ht_read_head(
                 &request->conn, 
                 head_par, 
                 request->heap,
-                &head));
+                &list));
 
-        *version = pgc_ast_tostr(pgc_ast_at(head, 0)->val);
-        *status = (int)pgc_ast_touint32(pgc_ast_at(head, 1)->val);
+        head->version = pgc_ast_tostr(pgc_ast_at(list, 0)->val);
+        head->status = (int)pgc_ast_touint32(pgc_ast_at(list, 1)->val);
 
-        *headers = pgc_stk_push(heap, sizeof(struct law_ht_hdrs));
-        if(!(*headers)) {
+        head->headers = pgc_stk_push(heap, sizeof(struct law_ht_hdrs));
+        if(!head->headers) {
                 return LAW_ERR_OOM;
         }
-        (*headers)->list = pgc_ast_at(head, 2);
+        head->headers->list = pgc_ast_at(list, 2);
 
         return LAW_ERR_OK;
 }
@@ -741,9 +737,9 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *http)
 sel_err_t law_ht_accept(
         struct law_server *server,
         int socket,
-        void *state)
+        struct law_data *data)
 {
-        struct law_ht_sctx *context = state;
+        struct law_ht_sctx *context = data->u.ptr;
         struct law_ht_sctx_cfg *cfg = context->cfg;
 
         const size_t in_length = cfg->in_length;

@@ -127,6 +127,7 @@ bin/ping: tests/lawd/ping.c \
 	build/lawd/pqueue.o \
 	build/lawd/cqueue.o \
 	build/lawd/time.o \
+	build/lawd/log.o \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 

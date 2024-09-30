@@ -68,12 +68,13 @@ struct law_srv_cfg {
         law_srv_call_t tick;                    /** Tick Callback */
         law_srv_accept_t accept;                /** Accept Callback */
         struct law_data data;                   /** User Data */
+        FILE *errors;                           /** Error Log */
 };
 
 /**
  * A sane and simple configuration.
  */
-extern struct law_srv_cfg law_srv_cfg_sanity;
+struct law_srv_cfg *law_srv_cfg_sanity();
 
 /** 
  * Create a new server. 
@@ -89,6 +90,11 @@ void law_srv_destroy(struct law_server *server);
  * Get the server's socket.
  */
 int law_srv_socket(struct law_server *server);
+
+/** 
+ * Get the server's error log.
+ */
+FILE *law_srv_errors(struct law_server *server);
 
 /**
  * Start listening for connections and drop root privileges.
@@ -114,7 +120,12 @@ sel_err_t law_srv_start(struct law_server *server);
 sel_err_t law_srv_stop(struct law_server *server);
 
 /**
- * Get the active task.
+ * Get the worker's server.
+ */
+struct law_server *law_srv_server(struct law_worker *worker);
+
+/**
+ * Get the worker's active task.
  */
 struct law_task *law_srv_active(struct law_worker *worker);
 

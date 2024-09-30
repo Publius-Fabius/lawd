@@ -3,6 +3,7 @@
 
 #include "lawd/server.h"
 #include "lawd/uri.h"
+
 #include <openssl/ssl.h>
 
 /** HTTP Headers */
@@ -20,16 +21,28 @@ struct law_ht_sreq;
 /** HTTP Client-Side Request */
 struct law_ht_creq;
 
+/** HTTP Request Head */
+struct law_ht_reqhead {
+        const char *method;                     /** Request Method */
+        struct law_uri target;                  /** Target URI */
+        const char *version;                    /** HTTP Version */
+        struct law_ht_hdrs *headers;            /** Header Fields */
+};
+
+/** HTTP Response Head */
+struct law_ht_reshead {
+        const char *version;                    /** HTTP Version */
+        int status;                             /** Status Code */
+        struct law_ht_hdrs *headers;            /** Header Fields */
+};
+
 /** 
  * HTTP Server Request Handler 
- * @param server The network server
- * @param context The HTTP server context.
- * @return A possible error.
  */
 typedef sel_err_t (*law_ht_call_t)(
-        struct law_server *server,
+        struct law_worker *worker,
         struct law_ht_sreq *request,
-        void *state);
+        struct law_data *data);
 
 /** Security Mode */
 enum law_ht_security{
@@ -64,9 +77,6 @@ struct law_ht_creq_cfg {
 
 /**
  * Get the header value by name.
- * @param headers A collection of HTTP message headers.
- * @param field_name The header field to search for.
- * @return The field's value or NULL.
  */
 const char *law_ht_hdrs_get(
         struct law_ht_hdrs *headers,
@@ -74,8 +84,6 @@ const char *law_ht_hdrs_get(
 
 /**
  * Get an iterator for the header collection.
- * @param headers A collection of HTTP message headers.
- * @return The header collection iterator.
  */
 struct law_ht_hdrs_i *law_ht_hdrs_elems(struct law_ht_hdrs *headers);
 
@@ -83,10 +91,6 @@ struct law_ht_hdrs_i *law_ht_hdrs_elems(struct law_ht_hdrs *headers);
  * Get the next header field <name, value> pair.  A NULL return value indicates
  * the iterator's resources were freed and no cleanup is necessary.  If NULL is
  * returned, the values of (*name) and (*value) are undefined.
- * @param iterator The iterator to advance.
- * @param field_name Return value pointing to the field's name component.
- * @param field_value Return value pointing to the field's value component.
- * @return NULL or iterator
  */
 struct law_ht_hdrs_i *law_ht_hdrs_i_next(
         struct law_ht_hdrs_i *iterator,
@@ -95,49 +99,37 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
 
 /**
  * Discard an unfinished iteration.
- * @param iterator The iterator to free.
  */
 void law_ht_hdrs_i_free(struct law_ht_hdrs_i *iterator);
 
 /** 
  * Get the request's system socket.
- * @param request The server-side request.
- * @return The request's system socket.
  */
 int law_ht_sreq_socket(struct law_ht_sreq *request);
 
 /**
  * Get the request's SSL state.
- * @param request The server-side request.
- * @return The request's SSL state.
  */
 SSL *law_ht_sreq_ssl(struct law_ht_sreq *request);
 
 /** 
  * Get the request's input buffer.
- * @param request The server-side request.
- * @return The request's input buffer.
  */
 struct pgc_buf *law_ht_sreq_in(struct law_ht_sreq *request);
 
 /** 
  * Get the request's output buffer.
- * @param request The server-side request.
- * @return The request's output buffer.
  */
 struct pgc_buf *law_ht_sreq_out(struct law_ht_sreq *request);
 
 /** 
  * Get the request's heap.
- * @param request The server-side request.
- * @return The request's heap.
  */
 struct pgc_stk *law_ht_sreq_heap(struct law_ht_sreq *request);
 
 /**
  * Accept an SSL connection.  This function should only be called once even 
  * if it returns LAW_ERR_WNTR or LAW_ERR_WNTW.
- * @returns
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_SSL - SSL error.
@@ -160,8 +152,6 @@ sel_err_t law_ht_sreq_ssl_shutdown(struct law_ht_sreq *request);
 
 /** 
  * Read data into the request's input buffer.
- * @param request The server-side request.
- * @return
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_OOB - Buffer is full.
@@ -174,12 +164,6 @@ sel_err_t law_ht_sreq_read_data(struct law_ht_sreq *request);
 
 /**
  * Read the server-side request's message head.
- * @param request The server-side request.
- * @param method Return value pointing to the method string.
- * @param target Return value pointing to the URI target.
- * @param version Return value pointing to the version string.
- * @param headers Return value pointing to an opaque header collection.
- * @return
  * LAW_ERR_WNTR - Wants to read. 
  * LAW_ERR_WNTW - Wants to write. 
  * LAW_ERR_OOB - Buffer is full. 
@@ -191,18 +175,10 @@ sel_err_t law_ht_sreq_read_data(struct law_ht_sreq *request);
  */
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
-        const char **method,
-        struct law_uri *target,
-        const char **version, 
-        struct law_ht_hdrs **headers);
+        struct law_ht_reqhead *head);
 
 /**
  * Set the status line.
- * @param request The server-side request.
- * @param version The HTTP version.
- * @param status The status code.
- * @param reason The reason.
- * @return 
  * LAW_ERR_OOB - Buffer is full.
  * LAW_ERR_OK - All OK.
  */
@@ -214,10 +190,6 @@ sel_err_t law_ht_sreq_set_status(
 
 /**
  * Add a response header.
- * @param request The request.
- * @param field_name Return value pointing to the name.
- * @param field_value Return value pointing to the value.
- * @returns 
  * LAW_ERR_OOB - Buffer is full.
  * LAW_ERR_OK - All OK.
  */
@@ -228,8 +200,6 @@ sel_err_t law_ht_sreq_add_header(
 
 /**
  * Begin response body.
- * @param request The server-side request.
- * @return 
  * LAW_ERR_OOB - Buffer is full.
  * LAW_ERR_OK - All OK.
  */
@@ -237,8 +207,6 @@ sel_err_t law_ht_sreq_begin_body(struct law_ht_sreq *request);
 
 /**
  * Write data from the output buffer.
- * @param request The server-side request.
- * @returns 
  * LAW_ERR_WNTR - Wants to read
  * LAW_ERR_WNTW - Wants to write
  * LAW_ERR_SYS - System error
@@ -249,12 +217,40 @@ sel_err_t law_ht_sreq_write_data(struct law_ht_sreq *request);
 
 /**
  * Close the request permanently.
- * @param request The server-side request.
- * @return 
  * LAW_ERR_OK 
  * LAW_ERR_SYS
  */
 sel_err_t law_ht_sreq_close(struct law_ht_sreq *request);
+
+/** 
+ * Get status code description. 
+ */
+const char *law_ht_status_str(const int status_code);
+
+/** 
+ * Create a new HTTP context. 
+ */
+struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *conf);
+
+/** 
+ * Destroy HTTP context. 
+ */
+void law_ht_sctx_destroy(struct law_ht_sctx *http);
+
+/**
+ * Initialize the HTTP server context.
+ * LAW_ERR_SSL
+ * LAW_ERR_OK
+ */
+sel_err_t law_ht_sctx_init(struct law_ht_sctx *context);
+
+/**
+ * Entry function for HTTP server functionality.
+ */
+sel_err_t law_ht_accept(
+        struct law_server *server,
+        int socket,
+        struct law_data *data);
 
 /**
  * Create a new client-side request.
@@ -268,15 +264,11 @@ void law_ht_creq_destroy(struct law_ht_creq *request);
 
 /** 
  * Get the request's system socket.
- * @param request The client-side request.
- * @return The request's system socket.
  */
 int law_ht_creq_socket(struct law_ht_creq *request);
 
 /**
  * Get the request's SSL state.
- * @param request The client-side request.
- * @return The request's SSL state.
  */
 SSL *law_ht_creq_SSL(struct law_ht_creq *request);
 
@@ -345,46 +337,12 @@ ssize_t law_ht_creq_read_data(struct law_ht_creq *request);
  */
 sel_err_t law_ht_creq_read_head(
         struct law_ht_creq *request,
-        const char **version,
-        int *status,
-        struct law_ht_hdrs **headers);
+        struct law_ht_reshead *head);
 
 /**
  * Done reading response.
  */
 sel_err_t law_ht_creq_done(struct law_ht_creq *request);
-
-/** 
- * Get status code description. 
- */
-const char *law_ht_status_str(const int status_code);
-
-/** 
- * Create a new HTTP context. 
- */
-struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *conf);
-
-/** 
- * Destroy HTTP context. 
- */
-void law_ht_sctx_destroy(struct law_ht_sctx *http);
-
-/**
- * Initialize the HTTP server context.
- * @param context The server context.
- * @return 
- * LAW_ERR_SSL
- * LAW_ERR_OK
- */
-sel_err_t law_ht_sctx_init(struct law_ht_sctx *context);
-
-/**
- * Entry function for HTTP functionality.
- */
-sel_err_t law_ht_accept(
-        struct law_server *server,
-        int socket,
-        void *state);
 
 /* PARSER SECTION */
 

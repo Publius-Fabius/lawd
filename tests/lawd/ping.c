@@ -46,7 +46,7 @@ int main(int argc, char ** argv)
         /* Can't control when client hangs up. */
         signal(SIGPIPE, SIG_IGN);
 
-        struct law_srv_cfg cfg = law_srv_cfg_sanity;
+        struct law_srv_cfg cfg = *law_srv_cfg_sanity();
         cfg.init = initer;
         cfg.tick = ticker;
         cfg.accept = accepter;
@@ -55,18 +55,15 @@ int main(int argc, char ** argv)
 
         sel_err_t err = law_srv_open(srv);
         if(err != SEL_ERR_OK) {
-                fprintf(stderr, "error opening server:\n");
                 goto CLEANUP;
         } 
         
         err = law_srv_start(srv);
-        puts("echo.c - returned from start");
-        if(err != SEL_ERR_OK) {
-                fprintf(stderr, "error starting server:\n");
-        }
 
         CLEANUP:
 
         law_srv_close(srv);
         law_srv_destroy(srv);
+
+        return EXIT_SUCCESS;
 }

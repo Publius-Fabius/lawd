@@ -1,6 +1,10 @@
 
+#define _GNU_SOURCE
+
 #include "lawd/log.h"
 #include "lawd/time.h"
+
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -39,28 +43,32 @@ sel_err_t law_log_get_ip(
 sel_err_t law_log_error(
         FILE *errors,
         const char *package,
+        const char *action,
         const char *message)
 {
         struct law_time_dtb buf;
         char *datetime = law_time_datetime(&buf);
         
         pid_t pid = getpid();
+        pid_t tid = gettid();
 
         fprintf(errors, 
-                "[%s] [%i] [%s] [%s]\r\n", 
+                "[%s] %i %i %s %s \"%s\"\r\n", 
                 datetime,
                 pid,
+                tid,
                 package,
+                action,
                 message);
                 
         return LAW_ERR_OK;
 }
 
-/* [datetime] [ip-address] [pid] [package] [message] */
 sel_err_t law_log_error_ip(
         FILE *errors,
         const int socket,
         const char *package,
+        const char *action,
         const char *message)
 {
         char ip_addr[INET6_ADDRSTRLEN];
@@ -76,13 +84,16 @@ sel_err_t law_log_error_ip(
         char *datetime = law_time_datetime(&buf);
         
         pid_t pid = getpid();
+        pid_t tid = gettid();
 
         SEL_IO(fprintf(errors, 
-                "[%s] [%s] [%i] [%s] [%s]\r\n", 
+               "%s [%s] %i %i %s %s \"%s\"\r\n", 
                 datetime,
                 ip_addr,
                 pid,
+                tid,
                 package,
+                action,
                 message));
                 
         return LAW_ERR_OK;
