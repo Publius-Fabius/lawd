@@ -42,7 +42,7 @@ struct law_ht_reshead {
 typedef sel_err_t (*law_ht_call_t)(
         struct law_worker *worker,
         struct law_ht_sreq *request,
-        struct law_data *data);
+        struct law_data data);
 
 /** Security Mode */
 enum law_ht_security{
@@ -59,7 +59,7 @@ struct law_ht_sctx_cfg {
         size_t heap_length;                     /** Heap Length */
         size_t heap_guard;                      /** Heap Guard */
         law_ht_call_t callback;                 /** Request Callback */
-        void *state;                            /** User State */
+        struct law_data data;                   /** User Data */
         enum law_ht_security security;          /** Security Mode */
         const char *certificate;                /** Certificate File */
         const char *private_key;                /** Private Key File */
@@ -128,6 +128,11 @@ struct pgc_buf *law_ht_sreq_out(struct law_ht_sreq *request);
 struct pgc_stk *law_ht_sreq_heap(struct law_ht_sreq *request);
 
 /**
+ * Get security mode.
+ */
+enum law_ht_security law_ht_sreq_security(struct law_ht_sreq *request);
+
+/**
  * Accept an SSL connection.  This function should only be called once even 
  * if it returns LAW_ERR_WNTR or LAW_ERR_WNTW.
  * LAW_ERR_WNTR - Wants to read.
@@ -149,6 +154,11 @@ sel_err_t law_ht_sreq_ssl_accept(struct law_ht_sreq *request);
  * LAW_ERR_OK - All OK.
  */
 sel_err_t law_ht_sreq_ssl_shutdown(struct law_ht_sreq *request);
+
+/**
+ * Free any resources acquired by ssl_accept.
+ */
+void law_ht_sreq_ssl_free(struct law_ht_sreq *request);
 
 /** 
  * Read data into the request's input buffer.
@@ -248,7 +258,7 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *context);
  * Entry function for HTTP server functionality.
  */
 sel_err_t law_ht_accept(
-        struct law_server *server,
+        struct law_worker *worker,
         int socket,
         struct law_data *data);
 

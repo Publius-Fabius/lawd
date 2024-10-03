@@ -163,6 +163,11 @@ bin/test_http: tests/lawd/http.c \
 	lib/libpgenc.a
 	$(CC) $(CFLAGS) -o $@ $^
 
+# webd.h
+build/lawd/webd.o : source/lawd/webd.c 
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# static lib
 lib/liblawd.a : \
 	build/lawd/error.o \
 	build/lawd/safemem.o \

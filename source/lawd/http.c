@@ -46,7 +46,7 @@ struct law_ht_creq {
 };
 
 struct law_ht_sctx {
-        struct law_ht_sctx_cfg *cfg;
+        struct law_ht_sctx_cfg cfg;
         SSL_CTX *ssl_context;
 };
 
@@ -124,6 +124,11 @@ struct pgc_stk *law_ht_sreq_heap(struct law_ht_sreq *req)
         return req->heap;
 }
 
+enum law_ht_security law_ht_sreq_security(struct law_ht_sreq *request)
+{
+        return request->context->cfg.security;
+}
+
 sel_err_t law_ht_sreq_ssl_accept(struct law_ht_sreq *request)
 {
         ERR_clear_error();
@@ -183,22 +188,19 @@ sel_err_t law_ht_sreq_ssl_shutdown(struct law_ht_sreq *request)
         } else if(ssl_err < 0) {
                 ssl_err = SSL_get_error(ssl, ssl_err);
                 switch(ssl_err) {
-                        case SSL_ERROR_WANT_READ:
-                                return LAW_ERR_WNTR;
-                        case SSL_ERROR_WANT_WRITE:
-                                return LAW_ERR_WNTW;
-                        case SSL_ERROR_SYSCALL:
-                                SSL_free(ssl);
-                                return LAW_ERR_SYS;
-                        default:
-                                SSL_free(ssl);
-                                return LAW_ERR_SSL;
+                        case SSL_ERROR_WANT_READ: return LAW_ERR_WNTR;
+                        case SSL_ERROR_WANT_WRITE: return LAW_ERR_WNTW;
+                        case SSL_ERROR_SYSCALL: return LAW_ERR_SYS;
+                        default: return LAW_ERR_SSL;
                 }
         } else {
-                /* Shutdown was a success. */
-                SSL_free(ssl);
                 return LAW_ERR_OK; 
         }
+}
+
+void law_ht_sreq_ssl_free(struct law_ht_sreq *request)
+{
+        SSL_free(request->conn.ssl);
 }
 
 static sel_err_t law_ht_read_SSL(
@@ -688,7 +690,7 @@ sel_err_t law_ht_creq_done(struct law_ht_creq *request)
 struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *cfg)
 {
         struct law_ht_sctx *http = malloc(sizeof(struct law_ht_sctx));
-        http->cfg = cfg;
+        http->cfg = *cfg;
         http->ssl_context = NULL;
         return http;
 }
@@ -712,7 +714,7 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *http)
         ERR_clear_error();
         int err = SSL_CTX_use_certificate_file(
                 context, 
-                http->cfg->certificate, 
+                http->cfg.certificate, 
                 SSL_FILETYPE_PEM);
         if(err < 0) {
                 SSL_CTX_free(context);
@@ -722,7 +724,7 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *http)
         ERR_clear_error();
         err = SSL_CTX_use_PrivateKey_file(
                 context, 
-                http->cfg->private_key, 
+                http->cfg.private_key, 
                 SSL_FILETYPE_PEM);
         if(err < 0) {
                 SSL_CTX_free(context);
@@ -735,12 +737,12 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *http)
 }
 
 sel_err_t law_ht_accept(
-        struct law_server *server,
+        struct law_worker *worker,
         int socket,
         struct law_data *data)
 {
         struct law_ht_sctx *context = data->u.ptr;
-        struct law_ht_sctx_cfg *cfg = context->cfg;
+        struct law_ht_sctx_cfg *cfg = &context->cfg;
 
         const size_t in_length = cfg->in_length;
         const size_t in_guard = cfg->in_guard;
@@ -769,10 +771,10 @@ sel_err_t law_ht_accept(
         request.context = context;
         request.conn.security = LAW_HT_UNSECURED;
 
-        sel_err_t error = context->cfg->callback(
-                server, 
+        sel_err_t error = context->cfg.callback(
+                worker, 
                 &request, 
-                context->cfg->state);
+                context->cfg.data);
         
         law_smem_destroy(heap_mem);
         law_smem_destroy(out_mem);

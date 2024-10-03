@@ -9,41 +9,53 @@
 struct law_webd;
 
 /**
- * Request Handler
+ * Request Handler: called per request, can be called multiple times per 
+ * connection if pipelining is enabled.
  */
-typedef int (*law_wd_call_t)(
+typedef sel_err_t (*law_wd_handler_t)(
         struct law_webd *webd,
+        struct law_worker *worker,
         struct law_ht_sreq *request,
         struct law_ht_reqhead *head,
-        struct law_data *data);
+        struct law_data data);
+
+/**
+ * Error Code Handler: called when a connection can still support a response
+ * with a valid status code.
+ */
+typedef sel_err_t (*law_wd_onerror_t)(
+        struct law_webd *webd,
+        struct law_worker *worker,
+        struct law_ht_sreq *request,
+        const int status_code,
+        struct law_data data);
 
 /** HTTP Server Configuration */
 struct law_wd_cfg {
         time_t read_head_timeout;               /** Head Timeout */
+        time_t ssl_shutdown_timeout;            /** SSL Shutdown Timeout */
         FILE *access;                           /** Access Log */
-        law_wd_call_t handler;                  /** Request Handler */
-        struct law_data *data;                  /** User Data */
+        law_wd_handler_t handler;               /** Request Handler */
+        law_wd_onerror_t onerror;               /** Error Handler */
+        struct law_data data;                   /** User Data */
 };
 
 /** Get the webd's access log. */
 FILE *law_wd_access(struct law_webd *webd);
 
-/** Get the webd's worker. */
-struct law_worker *law_wd_worker(struct law_webd *webd);
-
 /** 
  * Called at the end of a response. 
  */
 sel_err_t law_wd_done(
-        struct law_webd *server,
+        struct law_webd *webd,
         struct law_ht_sreq *request);
 
 /**
  * Accept the request.
  */
 sel_err_t law_wd_accept(
-        struct law_server *server,
+        struct law_worker *worker,
         struct law_ht_sreq *request,
-        struct law_data *data);
+        struct law_data data);
 
 #endif

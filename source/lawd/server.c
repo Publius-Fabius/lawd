@@ -18,11 +18,6 @@
 #include <fcntl.h>
 #include <string.h>
 
-#ifndef LAW_TASK_CHUNK
-/** How many tasks should a worker dequeue at once. */
-#define LAW_TASK_CHUNK 4
-#endif 
-
 #ifndef LAW_INIT_TASKS_CAP
 /** Initial task container capacity. */
 #define LAW_INIT_TASKS_CAP 2
@@ -58,6 +53,7 @@ struct law_task {
         struct law_data data;
         int mark;
         int mode;
+        int signal;
 };
 
 struct law_tasks {
@@ -78,7 +74,7 @@ struct law_worker {
 };
 
 struct law_server {
-        struct law_srv_cfg *cfg;
+        struct law_srv_cfg cfg;
         int epfd;
         int mode;
         int alertfd;
@@ -177,7 +173,7 @@ struct law_worker *law_worker_create(
 {
         SEL_ASSERT(server);
 
-        const int events_size = server->cfg->event_buffer;
+        const int events_size = server->cfg.event_buffer;
 
         struct law_worker *w = malloc(sizeof(struct law_worker));
         if(!w) {
@@ -254,7 +250,7 @@ struct law_server *law_srv_create(struct law_srv_cfg *cfg)
                 return NULL;
         }
 
-        s->cfg = cfg;
+        s->cfg = *cfg;
         s->mode = LAW_SRV_CREATED;
         s->socket = 0;
         s->epfd = 0;
@@ -290,7 +286,7 @@ struct law_server *law_srv_create(struct law_srv_cfg *cfg)
         return s;
 
         FREE_WORKERS:
-        for(unsigned int n = 0; n < nthreads; ++n) {
+        for(int n = 0; n < nthreads; ++n) {
                 law_worker_destroy(s->workers[n]);
         }
         free(s->workers);
@@ -313,7 +309,7 @@ void law_srv_destroy(struct law_server *s)
                 return;
         }
         free(s->events);
-        for(unsigned int n = 0; n < s->cfg->workers; ++n) {
+        for(unsigned int n = 0; n < s->cfg.workers; ++n) {
                 law_worker_destroy(s->workers[n]);
         }
         free(s->workers);
@@ -344,6 +340,7 @@ struct law_task *law_task_create(
         }
 
         task->mode = LAW_SRV_SPAWNED;
+        task->signal = LAW_ERR_OK;
         task->mark = 1;
         task->callback = callback;
         task->data = *data;
@@ -432,6 +429,7 @@ sel_err_t law_srv_poll(struct law_worker *w, struct law_event *lev)
         struct epoll_event eev;
         eev.data.ptr = lev;
         eev.events = law_event_to_epoll(lev->flags) | EPOLLONESHOT;
+        lev->flags = 0;
         SEL_IO_QUIETLY(epoll_ctl(w->epfd, EPOLL_CTL_MOD, lev->fd, &eev));
         return LAW_ERR_OK;
 }
@@ -453,8 +451,8 @@ sel_err_t law_srv_spawn(
         struct law_task *task = law_task_create(
                 callback,
                 data,
-                server->cfg->stack_length,
-                server->cfg->stack_guard);
+                server->cfg.stack_length,
+                server->cfg.stack_guard);
         if(!task) {
                 return LAW_ERR_OOM;
         } else if(!law_cq_enq(server->channel, task)) {
@@ -491,11 +489,11 @@ static sel_err_t law_worker_dispatch(struct law_worker *worker)
                 }
                 
                 const int mode = task->mode;
-                sel_err_t sig;
+                sel_err_t signal;
 
                 if(mode == LAW_SRV_SPAWNED) {
                         worker->active = task;
-                        sig = law_cor_call(
+                        signal = law_cor_call(
                                 worker->caller, 
                                 task->callee, 
                                 task->stack,
@@ -503,24 +501,23 @@ static sel_err_t law_worker_dispatch(struct law_worker *worker)
                                 worker);
                 } else if(mode == LAW_SRV_YIELDED) {
                         worker->active = task;
-                        sig = law_cor_resume(
+                        signal = law_cor_resume(
                                 worker->caller,
                                 task->callee,
-                                LAW_ERR_OK);
+                                task->signal);
                 } else {
                         return SEL_ABORT();
                 }
 
-                if(sig == LAW_SRV_YIELDED) {
+                if(signal == LAW_SRV_YIELDED) {
                         /* Task should be in the timer set. */
                         task->mode = LAW_SRV_YIELDED;
                         task->mark = 0;
-                } else if(sig == LAW_ERR_OK) {
+                } else if(signal == LAW_ERR_OK) {
                         law_task_destroy(task);
                 } else {
-                        SEL_REPORT(sig);
                         law_task_destroy(task);
-                        return sig;
+                        return signal;
                 }
         }
 
@@ -529,17 +526,17 @@ static sel_err_t law_worker_dispatch(struct law_worker *worker)
         return LAW_ERR_OK;
 }
 
-static sel_err_t law_worker_pump(struct law_worker *worker)
+static sel_err_t law_worker_tick(struct law_worker *worker)
 {
         struct law_server *server = worker->server;
-        FILE *errs = server->cfg->errors;
+        FILE *errs = server->cfg.errors;
         struct law_cqueue *channel = server->channel;
         struct law_pqueue *timers = worker->timers;
         struct epoll_event *events = worker->events;
 
-        int64_t timeout = server->cfg->timeout;
+        int64_t timeout = server->cfg.timeout;
         int64_t min_timer, now;
-
+        int cbuf;
         struct law_task *task;
 
         if(!law_cq_size(channel)) {
@@ -559,9 +556,10 @@ static sel_err_t law_worker_pump(struct law_worker *worker)
         const int event_cnt = epoll_wait(
                 worker->epfd, 
                 events, 
-                server->cfg->event_buffer, 
+                server->cfg.event_buffer, 
                 (int)timeout);
         if(event_cnt < 0) {
+                law_log_error(errs, "lawd", "epoll_wait", strerror(errno));
                 return SEL_FREPORT(errs, LAW_ERR_SYS);
         }
 
@@ -570,19 +568,19 @@ static sel_err_t law_worker_pump(struct law_worker *worker)
         for(int x = 0; x < event_cnt; ++x) {
                 void *ptr = events[x].data.ptr;
                 if(ptr == &server->alertfd) {
-                        char c;
-                        read(server->alertfd, &c, 1);
+                        read(server->alertfd, &cbuf, 1);
                 } else {
                         struct law_event *ev = ptr;
+                        ev->task->signal = LAW_ERR_OK;
                         ev->flags = law_event_from_epoll(events[x].events);
                         law_tasks_add(ready, ev->task);
                 }
         }
 
         now = law_time_millis();
-
         while(law_pq_peek(timers, (void**)&task, &min_timer)) {
                 if(min_timer <= now) {
+                        task->signal = LAW_ERR_TTL;
                         law_pq_pop(timers);
                         if(!law_tasks_add(ready, task)) {
                                 return SEL_FREPORT(errs, LAW_ERR_OOM);
@@ -592,10 +590,12 @@ static sel_err_t law_worker_pump(struct law_worker *worker)
                 }
         }
 
+        int chunk = (int)law_cq_size(channel) / server->cfg.workers;
+        chunk = chunk ? chunk : 1;
         for(int x = 0; law_cq_deq(channel, (void**)&task); ++x) {
                 if(!law_tasks_add(ready, task)) {
                         return SEL_FREPORT(errs, LAW_ERR_OOM);
-                } else if(x == LAW_TASK_CHUNK) {
+                } else if(x == chunk) {
                         break;
                 }
         }
@@ -610,7 +610,7 @@ static sel_err_t law_worker_spin(struct law_worker *worker)
                 || law_pq_size(worker->timers)
                 || law_cq_size(server->channel)) 
         {
-                SEL_TRY_QUIETLY(law_worker_pump(worker));
+                SEL_TRY_QUIETLY(law_worker_tick(worker));
         }
         return LAW_ERR_OK;
 }
@@ -618,9 +618,9 @@ static sel_err_t law_worker_spin(struct law_worker *worker)
 static sel_err_t law_worker_run(struct law_worker *worker)
 {
         struct law_server *server = worker->server;
-        FILE *errs = server->cfg->errors;
+        FILE *errs = server->cfg.errors;
 
-        worker->epfd = epoll_create(server->cfg->event_buffer);
+        worker->epfd = epoll_create(server->cfg.event_buffer);
         if(worker->epfd < 0) {
                 law_log_error(errs, "lawd", "epoll_create", strerror(errno));
                 return SEL_FREPORT(errs, LAW_ERR_SYS);
@@ -657,12 +657,12 @@ static sel_err_t law_server_trampoline(
 {
         struct law_server *server = worker->server;
         int socket = data->u.fd;
-        return server->cfg->accept(worker, socket, &server->cfg->data);
+        return server->cfg.accept(worker, socket, &server->cfg.data);
 }
 
 static sel_err_t law_server_accept(struct law_server *server) 
 {
-        FILE *errs = server->cfg->errors;
+        FILE *errs = server->cfg.errors;
 
         for(;;) {
                 const int client = accept(server->socket, NULL, NULL);
@@ -699,7 +699,7 @@ static sel_err_t law_server_accept(struct law_server *server)
 
 static sel_err_t law_server_spin(struct law_server *server, int pipe)
 {
-        FILE *errs = server->cfg->errors;
+        FILE *errs = server->cfg.errors;
 
         while(server->mode == LAW_SRV_RUNNING) {
 
@@ -714,8 +714,8 @@ static sel_err_t law_server_spin(struct law_server *server, int pipe)
                 if(epoll_wait(
                         server->epfd, 
                         server->events, 
-                        server->cfg->event_buffer, 
-                        server->cfg->timeout) < 0) 
+                        server->cfg.event_buffer, 
+                        server->cfg.timeout) < 0) 
                 {
                         const char *str = strerror(errno);
                         law_log_error(errs, "lawd", "epoll_wait", str);
@@ -725,21 +725,74 @@ static sel_err_t law_server_spin(struct law_server *server, int pipe)
         return LAW_ERR_OK;
 }
 
+static sel_err_t law_server_run_threads(struct law_server *s, const int pipe)
+{
+        FILE *errs = s->cfg.errors;
+        struct law_worker **workers = s->workers;
+        pthread_t *threads = s->threads;
+        const int nthreads = s->cfg.workers;
+        sel_err_t err;
+        int n = 0;
+        for(; n < nthreads; ++n) {
+                struct law_worker *worker = workers[n];
+                SEL_ASSERT(worker);
+                worker->id = n;
+                worker->server = s;
+                if(pthread_create(
+                        threads + n,
+                        NULL, 
+                        law_worker_thread, 
+                        worker) < 0) 
+                {
+                        const char *str = strerror(errno);
+                        law_log_error(errs, "lawd", "pthread_create", str);
+                        err = SEL_FREPORT(errs, LAW_ERR_SYS);
+                        law_srv_stop(s);
+                        goto JOIN_THREADS;
+                }
+        }
+        err = law_server_spin(s, pipe);
+        JOIN_THREADS:
+        for(int m = 0; m < n; ++m) {
+                pthread_join(threads[m], NULL);
+        }
+        return err;
+}
+
+static sel_err_t law_server_run_epoll(struct law_server *s, const int pipe)
+{
+        FILE *errs = s->cfg.errors;
+        struct epoll_event ev;
+        sel_err_t err;
+        s->epfd = epoll_create(2);
+        if(s->epfd < 0) {
+                law_log_error(errs, "lawd", "epoll_create", strerror(errno));
+                return SEL_FREPORT(errs, SEL_ERR_SYS);
+        }
+        ev.data.ptr = &s->socket;
+        ev.events = EPOLLIN | EPOLLERR;
+        if(epoll_ctl(s->epfd, EPOLL_CTL_ADD, s->socket, &ev) < 0) {
+                law_log_error(errs, "lawd", "epoll_ctl", strerror(errno));
+                err = SEL_FREPORT(errs, SEL_ERR_SYS);
+        } else {
+                err = law_server_run_threads(s, pipe);
+                epoll_ctl(s->epfd, EPOLL_CTL_DEL, s->socket, NULL);
+        }
+        close(s->epfd);
+        return err;
+}
+
 static sel_err_t law_server_run(struct law_server *s)
 {
-        FILE *errs = s->cfg->errors;
-
-        sel_err_t err;
-
+        FILE *errs = s->cfg.errors;
         int pipefd[2];
+        sel_err_t err;
+        int flags;
         if(pipe(pipefd) < 0) {
                 law_log_error(errs, "lawd", "pipe", strerror(errno));
-                err = SEL_FREPORT(errs, SEL_ERR_SYS);
-                goto EXIT;
+                return SEL_FREPORT(errs, SEL_ERR_SYS);
         }
-        s->alertfd = pipefd[0];
-        
-        const int flags = fcntl(s->alertfd, F_GETFL);
+        flags = fcntl(s->alertfd, F_GETFL);
         if(flags < 0) {
                 law_log_error(errs, "lawd", "fcntl", strerror(errno));
                 err = SEL_FREPORT(errs, SEL_ERR_SYS);
@@ -749,64 +802,12 @@ static sel_err_t law_server_run(struct law_server *s)
                 err = SEL_FREPORT(errs, SEL_ERR_SYS);
                 goto CLOSE_PIPE;
         }
-        
-        s->epfd = epoll_create(2);
-        if(s->epfd < 0) {
-                law_log_error(errs, "lawd", "epoll_create", strerror(errno));
-                err = SEL_FREPORT(errs, SEL_ERR_SYS);
-                goto CLOSE_PIPE;
-        }
-
-        struct epoll_event ev;
-        ev.data.ptr = &s->socket;
-        ev.events = EPOLLIN | EPOLLERR;
-        if(epoll_ctl(s->epfd, EPOLL_CTL_ADD, s->socket, &ev) < 0) {
-                law_log_error(errs, "lawd", "epoll_ctl", strerror(errno));
-                err = SEL_FREPORT(errs, SEL_ERR_SYS);
-                goto CLOSE_EPFD;
-        }
-        
-        const int nthreads = s->cfg->workers;
-        struct law_worker **workers = s->workers;
-        pthread_t *threads = s->threads;
-
-        for(int n = 0; n < nthreads; ++n) {
-                struct law_worker *worker = workers[n];
-
-                SEL_ASSERT(worker);
-
-                worker->id = n;
-                worker->server = s;
-
-                if(pthread_create(
-                        threads + n,
-                        NULL, 
-                        law_worker_thread, 
-                        worker) < 0) 
-                {
-                        const char *str = strerror(errno);
-                        law_log_error(errs, "lawd", "pthread_create", str);
-                        SEL_ABORT();
-                }
-        }
-
-        err = law_server_spin(s, pipefd[1]);
-
-        for(size_t n = 0; n < nthreads; ++n) {
-                pthread_join(threads[n], NULL);
-        }
-
-        epoll_ctl(s->epfd, EPOLL_CTL_DEL, s->socket, NULL);
-
-        CLOSE_EPFD:
-        close(s->epfd);
-
+        s->alertfd = pipefd[0];
+        err = law_server_run_epoll(s, pipefd[1]);
         CLOSE_PIPE:
         close(pipefd[1]);
         close(pipefd[0]);
-
-        EXIT:
-        return err == LAW_ERR_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+        return err;
 }
 
 sel_err_t law_srv_start(struct law_server *server)
@@ -826,7 +827,7 @@ sel_err_t law_srv_stop(struct law_server *server)
 
 sel_err_t law_srv_open(struct law_server *s)
 {
-        FILE *errs = s->cfg->errors;
+        FILE *errs = s->cfg.errors;
 
         struct sockaddr_storage addr;
         memset(&addr, 0, sizeof(struct sockaddr_storage));
@@ -835,14 +836,14 @@ sel_err_t law_srv_open(struct law_server *s)
         struct sockaddr_in *in;
         struct sockaddr_in6 *in6;
 
-        switch(s->cfg->protocol) {
+        switch(s->cfg.protocol) {
                 case LAW_SRV_TCP: 
                         domain = AF_INET;
                         type = SOCK_STREAM;
                         addrlen = sizeof(struct sockaddr_in);
                         in = (struct sockaddr_in*)&addr;
                         in->sin_family = AF_INET;
-                        in->sin_port = htons(s->cfg->port);
+                        in->sin_port = htons(s->cfg.port);
                         in->sin_addr.s_addr = htonl(INADDR_ANY);
                         break;
                 case LAW_SRV_TCP6:
@@ -851,7 +852,7 @@ sel_err_t law_srv_open(struct law_server *s)
                         addrlen = sizeof(struct sockaddr_in6);
                         in6 = (struct sockaddr_in6*)&addr;
                         in6->sin6_family = AF_INET6;
-                        in6->sin6_port = htons(s->cfg->port);
+                        in6->sin6_port = htons(s->cfg.port);
                         in6->sin6_addr = in6addr_any;
                         break;
                 case LAW_SRV_UDP:
@@ -860,7 +861,7 @@ sel_err_t law_srv_open(struct law_server *s)
                         addrlen = sizeof(struct sockaddr_in);
                         in = (struct sockaddr_in*)&addr;
                         in->sin_family = AF_INET;
-                        in->sin_port = htons(s->cfg->port);
+                        in->sin_port = htons(s->cfg.port);
                         in->sin_addr.s_addr = htonl(INADDR_ANY);
                         break;
                 case LAW_SRV_UDP6:
@@ -869,7 +870,7 @@ sel_err_t law_srv_open(struct law_server *s)
                         addrlen = sizeof(struct sockaddr_in6);
                         in6 = (struct sockaddr_in6*)&addr;
                         in6->sin6_family = AF_INET6;
-                        in6->sin6_port = htons(s->cfg->port);
+                        in6->sin6_port = htons(s->cfg.port);
                         in6->sin6_addr = in6addr_any;
                         break;
                 default: 
@@ -898,18 +899,18 @@ sel_err_t law_srv_open(struct law_server *s)
                 law_log_error(errs, "lawd", "bind", strerror(errno));
                 return SEL_REPORT(SEL_ERR_SYS);
         }
-        if(listen(fd, s->cfg->backlog) < 0) { 
+        if(listen(fd, s->cfg.backlog) < 0) { 
                 close(fd);
                 law_log_error(errs, "lawd", "listen", strerror(errno));
                 return SEL_REPORT(SEL_ERR_SYS);
         }
 
-        if(setgid(s->cfg->gid) < 0) { 
+        if(setgid(s->cfg.gid) < 0) { 
                 close(fd);
                 law_log_error(errs, "lawd", "getgid", strerror(errno));
                 return SEL_REPORT(SEL_ERR_SYS);
         }
-        if(setuid(s->cfg->uid) < 0) {
+        if(setuid(s->cfg.uid) < 0) {
                 close(fd);
                 law_log_error(errs, "lawd", "setuid", strerror(errno));
                 return SEL_REPORT(SEL_ERR_SYS);
