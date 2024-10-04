@@ -72,7 +72,7 @@ bin/test_time: tests/lawd/time.c \
 	$(CC) $(CFLAGS) -o $@ $^
 
 # log.h
-build/lawd/log.o: source/lawd/log.c include/lawd/log.h 
+build/lawd/log.o: source/lawd/log.c include/lawd/log.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 bin/test_log: tests/lawd/log.c \
 	build/lawd/log.o \
@@ -112,6 +112,7 @@ bin/test_server : tests/lawd/server.c \
 	build/lawd/pqueue.o \
 	build/lawd/cqueue.o \
 	build/lawd/time.o \
+	build/lawd/log.o \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 grind_test_server : bin/test_server
@@ -164,7 +165,7 @@ bin/test_http: tests/lawd/http.c \
 	$(CC) $(CFLAGS) -o $@ $^
 
 # webd.h
-build/lawd/webd.o : source/lawd/webd.c 
+build/lawd/webd.o : source/lawd/webd.c includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # static lib
@@ -177,10 +178,11 @@ lib/liblawd.a : \
 	build/lawd/uri_parsers.o \
 	build/lawd/uri.o \
 	build/lawd/http_parsers.o \
-	build/lawd/http.o 
+	build/lawd/http.o \
+	build/lawd/webd.o
 	ar -crs $@ $^
 
-# hello world http server
+# hello world http app
 bin/hello : tests/lawd/hello.c \
 	lib/liblawd.a \
 	lib/libpgenc.a \

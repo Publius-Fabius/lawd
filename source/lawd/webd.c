@@ -10,6 +10,18 @@ struct law_webd {
         struct law_wd_cfg cfg;
 };
 
+struct law_wd_cfg *law_wd_cfg_sanity()
+{
+        static struct law_wd_cfg cfg;
+        cfg.read_head_timeout           = 5000;
+        cfg.ssl_shutdown_timeout        = 5000;
+        cfg.data                        = (struct law_data){.u = {.u64 = 0}};
+        cfg.handler                     = NULL;
+        cfg.onerror                     = NULL;
+        cfg.access                      = stdout;
+        return &cfg;
+}
+
 struct law_webd *law_wd_create(struct law_wd_cfg *cfg)
 {
         struct law_webd *webd = malloc(sizeof(struct law_webd));
@@ -62,17 +74,17 @@ static sel_err_t law_wd_io_arg(
         const int sock = law_ht_sreq_socket(request);
         int64_t now = law_time_millis();
         const int64_t wakeup = timeout + now;
-        struct law_event ev = { .fd = sock, .flags = 0 };
-        for(;; ev.flags = 0) {
+        struct law_event ev = { .fd = sock, .events = 0 };
+        for(;;) {
                 const sel_err_t err = io(request, arg);
                 switch(err) {
                         case LAW_ERR_OK: 
                                 return LAW_ERR_OK;
                         case LAW_ERR_WNTW: 
-                                ev.flags = LAW_SRV_POUT;
+                                ev.events = LAW_SRV_POUT;
                                 break;
                         case LAW_ERR_WNTR: 
-                                ev.flags = LAW_SRV_PIN;
+                                ev.events = LAW_SRV_PIN;
                                 break;
                         default: 
                                 law_wd_log_error(errs, sock, action, err);
@@ -82,12 +94,9 @@ static sel_err_t law_wd_io_arg(
                 if(wakeup <= now) {
                         return LAW_ERR_TTL;
                 }
-                if(law_srv_poll(worker, &ev) != LAW_ERR_OK) {
+                if(law_srv_poll(worker, wakeup - now, 1, &ev) != LAW_ERR_OK) {
                         law_wd_log_error(errs, sock, "law_srv_poll", err);
                         return SEL_FREPORT(errs, err);
-                }
-                if(law_srv_wait(worker, wakeup - now) == LAW_ERR_TTL) {
-                        return LAW_ERR_TTL;
                 }
         }
         return SEL_ABORT();

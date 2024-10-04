@@ -25,24 +25,23 @@
 
 struct law_srv_cfg *law_srv_cfg_sanity()
 {
-        static struct law_srv_cfg cfg = {                            
-                .protocol               = LAW_SRV_TCP, 
-                .port                   = 80,
-                .backlog                = 10,
-                .maxconns               = 100,  
-                .timeout                = 5000,
-                .stack_length           = 0x100000,
-                .stack_guard            = 0x1000,
-                .uid                    = 1000,
-                .gid                    = 1000,
-                .event_buffer           = 32,
-                .workers                = 1,
-                .data                   = { .u = { .u64 = 0 } },
-                .init                   = NULL,
-                .tick                   = NULL,
-                .accept                 = NULL
-        };
-        cfg.errors = stderr;
+        static struct law_srv_cfg cfg;
+        cfg.protocol            = LAW_SRV_TCP;
+        cfg.port                = 80;
+        cfg.backlog             = 10;
+        cfg.maxconns            = 100;  
+        cfg.timeout             = 5000;
+        cfg.stack_length        = 0x100000;
+        cfg.stack_guard         = 0x1000;
+        cfg.uid                 = 1000;
+        cfg.gid                 = 1000;
+        cfg.event_buffer        = 32;
+        cfg.workers             = 1;
+        cfg.data                = (struct law_data){ .u = { .u64 = 0 } };
+        cfg.init                = NULL;
+        cfg.tick                = NULL;
+        cfg.accept              = NULL;
+        cfg.errors              = stderr;
         return &cfg;
 }
 
@@ -53,7 +52,6 @@ struct law_task {
         struct law_data data;
         int mark;
         int mode;
-        int signal;
 };
 
 struct law_tasks {
@@ -83,6 +81,11 @@ struct law_server {
         struct law_cqueue *channel;
         struct law_worker **workers;
         struct epoll_event *events;
+};
+
+struct law_srv_poll_rec {
+        struct law_task *task;
+        sel_err_t signal;
 };
 
 enum law_srv_ctrl {
@@ -175,7 +178,7 @@ struct law_worker *law_worker_create(
 
         const int events_size = server->cfg.event_buffer;
 
-        struct law_worker *w = malloc(sizeof(struct law_worker));
+        struct law_worker *w = calloc(1, sizeof(struct law_worker));
         if(!w) {
                 return NULL;
         }
@@ -204,6 +207,7 @@ struct law_worker *law_worker_create(
         w->id = id;
         w->active = NULL;
         w->epfd = 0;
+        w->active = NULL;
         
         return w;
 
@@ -261,7 +265,7 @@ struct law_server *law_srv_create(struct law_srv_cfg *cfg)
                 goto FREE_SERVER;
         }
 
-        s->threads = calloc((size_t)nthreads, sizeof(int));
+        s->threads = calloc((size_t)nthreads, sizeof(pthread_t));
         if(!s->threads) {
                 goto FREE_CHANNEL;
         }
@@ -340,7 +344,6 @@ struct law_task *law_task_create(
         }
 
         task->mode = LAW_SRV_SPAWNED;
-        task->signal = LAW_ERR_OK;
         task->mark = 1;
         task->callback = callback;
         task->data = *data;
@@ -376,71 +379,82 @@ void law_task_destroy(struct law_task *task)
         free(task);
 }
 
+struct law_server *law_srv_server(struct law_worker *worker) 
+{
+        return worker->server;
+}
+
 sel_err_t law_srv_watch(struct law_worker *worker, const int sock)
 {
-        SEL_IO_QUIETLY(epoll_ctl(worker->epfd, EPOLL_CTL_ADD, sock, NULL));
+        struct epoll_event ev = { .events = 0, .data.ptr = NULL };
+        SEL_IO_QUIETLY(epoll_ctl(worker->epfd, EPOLL_CTL_ADD, sock, &ev));
         return LAW_ERR_OK;
 }
 
 sel_err_t law_srv_unwatch(struct law_worker *worker,const int sock)
 {
-        SEL_IO_QUIETLY(epoll_ctl(worker->epfd, EPOLL_CTL_DEL, sock, NULL));
+        struct epoll_event ev = { .events = 0, .data.ptr = NULL };
+        SEL_IO_QUIETLY(epoll_ctl(worker->epfd, EPOLL_CTL_DEL, sock, &ev));
         return LAW_ERR_OK;
 }
 
-static uint32_t law_event_to_epoll(int law_ev) 
+sel_err_t law_srv_poll(
+        struct law_worker *w,
+        int64_t timeout,
+        const int nevents, 
+        struct law_event *events)
 {
-        uint32_t ev = 0;
-        if(law_ev & LAW_SRV_PIN) {
-                ev |= EPOLLIN;
-        } 
-        if(law_ev & LAW_SRV_POUT) {
-                ev |= EPOLLOUT;
-        }
-        if(law_ev & LAW_SRV_PHUP) {
-                ev |= EPOLLHUP;
-        }
-        if(law_ev & LAW_SRV_PERR) {
-                ev |= EPOLLERR;
-        }
-        return ev;
-}
+        struct law_pq_pair *pair;
+        sel_err_t err;
+        struct epoll_event ev;
+        struct law_srv_poll_rec rec;
+        rec.task = w->active;
+        rec.signal = LAW_ERR_OK;
 
-static int law_event_from_epoll(uint32_t ep_ev) 
-{
-        int l_ev = 0;
-        if(ep_ev & EPOLLIN) {
-                l_ev |= LAW_SRV_PIN;
-        } 
-        if(ep_ev & EPOLLOUT) {
-                l_ev |= LAW_SRV_POUT;
+        for(int n = 0; n < nevents; ++n) {
+                events[n].record = &rec;
+                events[n].revents = 0;
         }
-        if(ep_ev & EPOLLHUP) {
-                l_ev |= LAW_SRV_PHUP;
+        for(int n = 0; n < nevents; ++n) {
+                struct law_event *le = events + n;
+                ev.events = le->events | EPOLLONESHOT;
+                ev.data.ptr = le;
+                if(epoll_ctl(w->epfd, EPOLL_CTL_MOD, le->fd, &ev) < 0) {
+                        err = LAW_ERR_SYS;
+                        goto UNDO_EPOLL_CTL;
+                }
         }
-        if(ep_ev & EPOLLERR) {
-                l_ev |= LAW_SRV_PERR;
-        }
-        return l_ev;
-}
 
-sel_err_t law_srv_poll(struct law_worker *w, struct law_event *lev)
-{
-        struct epoll_event eev;
-        eev.data.ptr = lev;
-        eev.events = law_event_to_epoll(lev->flags) | EPOLLONESHOT;
-        lev->flags = 0;
-        SEL_IO_QUIETLY(epoll_ctl(w->epfd, EPOLL_CTL_MOD, lev->fd, &eev));
-        return LAW_ERR_OK;
-}
-
-sel_err_t law_srv_wait(struct law_worker *w, int64_t timeout)
-{
-        struct law_task *task = w->active;
-        if(!law_pq_insert(w->timers, task, law_time_millis() + timeout)) {
-                return LAW_ERR_OOM;
+        pair = law_pq_insert(w->timers, law_time_millis() + timeout, &rec);
+        if(!pair) {
+                err = LAW_ERR_OOM;
+                goto UNDO_EPOLL_CTL;
         } 
-        return law_cor_yield(w->caller, task->callee, LAW_SRV_YIELDED);
+
+        law_cor_yield(w->caller, rec.task->callee, LAW_SRV_YIELDED);
+
+        if(rec.signal != LAW_ERR_TTL) {
+                /* Pair should still be in the timer set. */
+                pair->value = NULL;
+        } 
+
+        ev = (struct epoll_event){ .events = 0, .data.ptr = NULL };
+        for(int n = 0; n < nevents; ++n) {
+                struct law_event *le = events + n;
+                if(!le->revents) {
+                        puts("Undoing epoll_ctl_mode.");
+                        epoll_ctl(w->epfd, EPOLL_CTL_MOD, le->fd, &ev);
+                }
+        }
+        
+        return rec.signal;
+
+        UNDO_EPOLL_CTL:
+        ev = (struct epoll_event){ .events = 0, .data.ptr = NULL };
+        for(int n = 0; n < nevents; ++n) {
+                epoll_ctl(w->epfd, EPOLL_CTL_MOD, events[n].fd, &ev);
+        }
+        return err;
 }
 
 sel_err_t law_srv_spawn(
@@ -470,7 +484,7 @@ int law_worker_trampoline(
 {
         struct law_worker *worker = state;
         struct law_task *task = worker->active;
-        return task->callback(worker, &task->data);
+        return task->callback(worker, task->data);
 }
 
 static sel_err_t law_worker_dispatch(struct law_worker *worker)
@@ -492,6 +506,8 @@ static sel_err_t law_worker_dispatch(struct law_worker *worker)
                 sel_err_t signal;
 
                 if(mode == LAW_SRV_SPAWNED) {
+                        
+                        signal = LAW_ERR_OK;
                         worker->active = task;
                         signal = law_cor_call(
                                 worker->caller, 
@@ -500,11 +516,12 @@ static sel_err_t law_worker_dispatch(struct law_worker *worker)
                                 law_worker_trampoline,
                                 worker);
                 } else if(mode == LAW_SRV_YIELDED) {
+                        signal = LAW_ERR_OK;
                         worker->active = task;
                         signal = law_cor_resume(
                                 worker->caller,
                                 task->callee,
-                                task->signal);
+                                LAW_ERR_OK);
                 } else {
                         return SEL_ABORT();
                 }
@@ -533,14 +550,16 @@ static sel_err_t law_worker_tick(struct law_worker *worker)
         struct law_cqueue *channel = server->channel;
         struct law_pqueue *timers = worker->timers;
         struct epoll_event *events = worker->events;
+        struct law_tasks *ready = worker->ready;
 
         int64_t timeout = server->cfg.timeout;
         int64_t min_timer, now;
-        int cbuf;
+        int cbuf = 0;
+        struct law_srv_poll_rec *rec;
         struct law_task *task;
 
         if(!law_cq_size(channel)) {
-                if(law_pq_peek(timers, NULL, &min_timer)) {
+                if(law_pq_peek(timers, &min_timer, NULL)) {
                         now = law_time_millis();
                         if(min_timer <= now) {
                                 timeout = 0;
@@ -563,26 +582,27 @@ static sel_err_t law_worker_tick(struct law_worker *worker)
                 return SEL_FREPORT(errs, LAW_ERR_SYS);
         }
 
-        struct law_tasks *ready = worker->ready;
-
         for(int x = 0; x < event_cnt; ++x) {
                 void *ptr = events[x].data.ptr;
                 if(ptr == &server->alertfd) {
                         read(server->alertfd, &cbuf, 1);
                 } else {
                         struct law_event *ev = ptr;
-                        ev->task->signal = LAW_ERR_OK;
-                        ev->flags = law_event_from_epoll(events[x].events);
-                        law_tasks_add(ready, ev->task);
+                        rec = ev->record;
+                        ev->revents = events[x].events;
+                        law_tasks_add(ready, rec->task);
                 }
         }
 
         now = law_time_millis();
-        while(law_pq_peek(timers, (void**)&task, &min_timer)) {
+        while(law_pq_peek(timers, &min_timer, (void**)&rec)) {
                 if(min_timer <= now) {
-                        task->signal = LAW_ERR_TTL;
                         law_pq_pop(timers);
-                        if(!law_tasks_add(ready, task)) {
+                        if(!rec) {
+                                continue;
+                        }
+                        rec->signal = LAW_ERR_TTL;
+                        if(!law_tasks_add(ready, rec->task)) {
                                 return SEL_FREPORT(errs, LAW_ERR_OOM);
                         }
                 } else {
@@ -595,7 +615,8 @@ static sel_err_t law_worker_tick(struct law_worker *worker)
         for(int x = 0; law_cq_deq(channel, (void**)&task); ++x) {
                 if(!law_tasks_add(ready, task)) {
                         return SEL_FREPORT(errs, LAW_ERR_OOM);
-                } else if(x == chunk) {
+                } 
+                if(x == chunk) {
                         break;
                 }
         }
@@ -653,17 +674,18 @@ void *law_worker_thread(void *state)
 
 static sel_err_t law_server_trampoline(
         struct law_worker *worker, 
-        struct law_data *data)
+        struct law_data data)
 {
         struct law_server *server = worker->server;
-        int socket = data->u.fd;
-        return server->cfg.accept(worker, socket, &server->cfg.data);
+        int socket = data.u.fd;
+        return server->cfg.accept(worker, socket, server->cfg.data);
 }
 
 static sel_err_t law_server_accept(struct law_server *server) 
 {
         FILE *errs = server->cfg.errors;
 
+        /* Oops!  Should check for maxconns probably. */
         for(;;) {
                 const int client = accept(server->socket, NULL, NULL);
                 if(client < 0) {
@@ -700,17 +722,13 @@ static sel_err_t law_server_accept(struct law_server *server)
 static sel_err_t law_server_spin(struct law_server *server, int pipe)
 {
         FILE *errs = server->cfg.errors;
-
+        char c = 0;
         while(server->mode == LAW_SRV_RUNNING) {
-
                 SEL_TRY_QUIETLY(law_server_accept(server));
-                
-                char c = 0;
                 if(write(pipe, &c, 1) < 0) {
                         law_log_error(errs, "lawd", "write", strerror(errno));
                         return SEL_FREPORT(errs, LAW_ERR_SYS);
                 }
-
                 if(epoll_wait(
                         server->epfd, 
                         server->events, 

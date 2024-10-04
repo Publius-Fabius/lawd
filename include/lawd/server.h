@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <sys/epoll.h>
 
 /** Network Protocol */
 enum law_srv_prot {
@@ -18,10 +19,10 @@ enum law_srv_prot {
 
 /** Event Flags */
 enum law_srv_flag {
-        LAW_SRV_PIN     = 1,                    /** Poll for Input */                       
-        LAW_SRV_POUT    = 1 << 1,               /** Poll for Output */
-        LAW_SRV_PHUP    = 1 << 2,               /** Poll for a Hangup */
-        LAW_SRV_PERR    = 1 << 3                /** Poll for an Error */
+        LAW_SRV_PIN     = EPOLLIN,              /** Poll for Input */                       
+        LAW_SRV_POUT    = EPOLLOUT,             /** Poll for Output */
+        LAW_SRV_PHUP    = EPOLLHUP,             /** Poll for a Hangup */
+        LAW_SRV_PERR    = EPOLLERR              /** Poll for an Error */
 };
 
 /** Network Server */
@@ -30,26 +31,24 @@ struct law_server;
 /** Worker Thread */
 struct law_worker;
 
-/** Server Task (Coroutine) */
-struct law_task;
-
-/** Server IO Event */
+/** IO Event */
 struct law_event {
-        struct law_task *task;          /** The task the event belongs to. */
-        int fd;                         /** The event's file descriptor */
-        int flags;                      /** Event flags in and out. */
+        int fd;                         /** The event's file descriptor. */
+        unsigned int events;            /** Events to scan for. */
+        unsigned int revents;           /** Returned events. */
+        void *record;                   /** Polling Record */
 };
 
 /** General Callback */
 typedef sel_err_t (*law_srv_call_t)(
         struct law_worker *worker,
-        struct law_data *data);
+        struct law_data data);
 
 /** Accept Callback */
 typedef sel_err_t (*law_srv_accept_t)(
         struct law_worker *worker, 
         int socket,
-        struct law_data *data);
+        struct law_data data);
 
 /** Server Configuration */
 struct law_srv_cfg {                            
@@ -140,9 +139,13 @@ sel_err_t law_srv_watch(struct law_worker *worker, const int fd);
 sel_err_t law_srv_unwatch(struct law_worker *worker, const int fd);
 
 /**
- * Request one shot event notification.
+ * Request event notification.
  */
-sel_err_t law_srv_poll(struct law_worker *worker, struct law_event *event);
+sel_err_t law_srv_poll(
+        struct law_worker *worker,
+        int64_t timeout,
+        const int event_count, 
+        struct law_event *events);
 
 /**
  * Yield the coroutine and wait for IO events to occur or a certain ammount 

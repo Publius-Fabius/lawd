@@ -260,7 +260,7 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *context);
 sel_err_t law_ht_accept(
         struct law_worker *worker,
         int socket,
-        struct law_data *data);
+        struct law_data data);
 
 /**
  * Create a new client-side request.

@@ -739,9 +739,9 @@ sel_err_t law_ht_sctx_init(struct law_ht_sctx *http)
 sel_err_t law_ht_accept(
         struct law_worker *worker,
         int socket,
-        struct law_data *data)
+        struct law_data data)
 {
-        struct law_ht_sctx *context = data->u.ptr;
+        struct law_ht_sctx *context = data.u.ptr;
         struct law_ht_sctx_cfg *cfg = &context->cfg;
 
         const size_t in_length = cfg->in_length;

@@ -40,6 +40,8 @@ struct law_wd_cfg {
         struct law_data data;                   /** User Data */
 };
 
+struct law_wd_cfg *law_wd_cfg_sanity();
+
 /** Get the webd's access log. */
 FILE *law_wd_access(struct law_webd *webd);
 

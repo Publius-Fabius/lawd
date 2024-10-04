@@ -17,7 +17,7 @@ int law_cor_swap_x86_64(
 
 inline struct law_cor *law_cor_create()
 {
-        return malloc(sizeof(void*) * 2);
+        return calloc(2, sizeof(void*));
 }
 
 inline void law_cor_destroy(struct law_cor *env)

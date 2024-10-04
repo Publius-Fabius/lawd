@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+struct law_pq_pair {
+        int64_t priority;
+        void *value;
+};
+
 /** Priority Queue */
 struct law_pqueue;
 
@@ -19,23 +24,23 @@ void law_pq_destroy(struct law_pqueue *queue);
 /** 
  * Insert a value.
  */
-struct law_pqueue *law_pq_insert(
+struct law_pq_pair *law_pq_insert(
         struct law_pqueue *queue,
-        void *value,
-        const int64_t priority);
+        const int64_t priority,
+        void *value);
 
 /** 
- * Pop minimum value, NULL if empty.
+ * Pop minimum, NULL if empty.
  */
 struct law_pqueue *law_pq_pop(struct law_pqueue *queue);
 
 /** 
- * Peek minimum value, NULL if empty.
+ * Peek minimum, NULL if empty.
  */
 struct law_pqueue *law_pq_peek(
         struct law_pqueue *queue,
-        void **value,
-        int64_t *priority);
+        int64_t *priority,
+        void **value);
 
 /**
  * Get queue's current capacity.
