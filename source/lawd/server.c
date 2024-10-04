@@ -620,14 +620,16 @@ static sel_err_t law_worker_tick(struct law_worker *worker)
         return law_worker_dispatch(worker);
 }
 
-static sel_err_t law_worker_spin(struct law_worker *worker)
+static sel_err_t law_worker_spin(struct law_worker *w)
 {
-        struct law_server *server = worker->server;
-        while(  server->mode == LAW_SRV_RUNNING 
-                || law_pq_size(worker->timers)
-                || law_cq_size(server->channel)) 
+        struct law_server *s = w->server;
+        SEL_TRY_QUIETLY(s->cfg.init(w, s->cfg.data));
+        while(  s->mode == LAW_SRV_RUNNING 
+                || law_pq_size(w->timers)
+                || law_cq_size(s->channel)) 
         {
-                SEL_TRY_QUIETLY(law_worker_tick(worker));
+                SEL_TRY_QUIETLY(s->cfg.tick(w, s->cfg.data));
+                SEL_TRY_QUIETLY(law_worker_tick(w));
         }
         return LAW_ERR_OK;
 }
