@@ -102,16 +102,13 @@ struct law_tasks *law_tasks_create()
         if(!tasks) {
                 return NULL;
         }
-
-        tasks->array = calloc(LAW_INIT_TASKS_CAP, sizeof(struct law_task*));
+        tasks->array = calloc(LAW_INIT_TASKS_CAP, sizeof(void*));
         if(!tasks->array) {
                 free(tasks);
                 return NULL;
         }
-
         tasks->capacity = LAW_INIT_TASKS_CAP;
         tasks->size = 0;
-
         return tasks;
 }
 
@@ -127,7 +124,7 @@ void law_tasks_destroy(struct law_tasks *tasks)
 struct law_tasks *law_tasks_reset(struct law_tasks *tasks)
 {
         SEL_ASSERT(tasks);
-        memset(tasks->array, 0, sizeof(struct law_task*) * tasks->size);
+        memset(tasks->array, 0, sizeof(void*) * tasks->size);
         tasks->size = 0;
         return tasks;
 }
@@ -136,11 +133,11 @@ struct law_tasks *law_tasks_grow(struct law_tasks *ps)
 {
         const size_t old_cap = ps->capacity;
         const size_t new_cap = old_cap * 2;
-        ps->array = realloc(ps->array, new_cap * sizeof(struct law_task*));
+        ps->array = realloc(ps->array, new_cap * sizeof(void*));
         if(!ps->array) {
                 return NULL;
         }
-        memset(ps->array + old_cap, 0, old_cap * sizeof(struct law_task*));
+        memset(ps->array + old_cap, 0, old_cap * sizeof(void*));
         ps->capacity = new_cap;
         return ps;
 }
@@ -178,7 +175,7 @@ struct law_worker *law_worker_create(
 
         const int events_size = server->cfg.event_buffer;
 
-        struct law_worker *w = calloc(1, sizeof(struct law_worker));
+        struct law_worker *w = malloc(sizeof(struct law_worker));
         if(!w) {
                 return NULL;
         }
@@ -226,16 +223,16 @@ struct law_worker *law_worker_create(
         return NULL;
 }
 
-void law_worker_destroy(struct law_worker *worker)
+void law_worker_destroy(struct law_worker *w)
 {
-        if(!worker) {
+        if(!w) {
                 return;
         }
-        free(worker->events);
-        law_pq_destroy(worker->timers);
-        law_tasks_destroy(worker->ready);
-        law_cor_destroy(worker->caller);
-        free(worker);
+        free(w->events);
+        law_pq_destroy(w->timers);
+        law_tasks_destroy(w->ready);
+        law_cor_destroy(w->caller);
+        free(w);
 }
 
 struct law_server *law_srv_create(struct law_srv_cfg *cfg) 
@@ -442,7 +439,6 @@ sel_err_t law_srv_poll(
         for(int n = 0; n < nevents; ++n) {
                 struct law_event *le = events + n;
                 if(!le->revents) {
-                        puts("Undoing epoll_ctl_mode.");
                         epoll_ctl(w->epfd, EPOLL_CTL_MOD, le->fd, &ev);
                 }
         }
@@ -638,20 +634,17 @@ static sel_err_t law_worker_spin(struct law_worker *worker)
 
 static sel_err_t law_worker_run(struct law_worker *worker)
 {
-        struct law_server *server = worker->server;
-        FILE *errs = server->cfg.errors;
+        struct law_server *s = worker->server;
+        FILE *errs = s->cfg.errors;
 
-        worker->epfd = epoll_create(server->cfg.event_buffer);
+        worker->epfd = epoll_create(s->cfg.event_buffer);
         if(worker->epfd < 0) {
                 law_log_error(errs, "lawd", "epoll_create", strerror(errno));
                 return SEL_FREPORT(errs, LAW_ERR_SYS);
         }
 
-        struct epoll_event ev; 
-        ev.events = EPOLLIN;
-        ev.data.ptr = &server->alertfd;
-
-        if(epoll_ctl(worker->epfd, EPOLL_CTL_ADD, server->alertfd, &ev) < 0) {
+        struct epoll_event ev = { .events = EPOLLIN, .data.ptr = &s->alertfd };
+        if(epoll_ctl(worker->epfd, EPOLL_CTL_ADD, s->alertfd, &ev) < 0) {
                 close(worker->epfd);
                 law_log_error(errs, "lawd", "epoll_ctl", strerror(errno));
                 return SEL_FREPORT(errs, LAW_ERR_SYS);
@@ -659,7 +652,7 @@ static sel_err_t law_worker_run(struct law_worker *worker)
 
         sel_err_t err = law_worker_spin(worker);
 
-        epoll_ctl(worker->epfd, EPOLL_CTL_DEL, server->alertfd, NULL);
+        epoll_ctl(worker->epfd, EPOLL_CTL_DEL, s->alertfd, NULL);
         close(worker->epfd);
 
         return err;
@@ -684,7 +677,6 @@ static sel_err_t law_server_trampoline(
 static sel_err_t law_server_accept(struct law_server *server) 
 {
         FILE *errs = server->cfg.errors;
-
         /* Oops!  Should check for maxconns probably. */
         for(;;) {
                 const int client = accept(server->socket, NULL, NULL);
@@ -697,7 +689,6 @@ static sel_err_t law_server_accept(struct law_server *server)
                                 return SEL_FREPORT(errs, SEL_ERR_SYS);
                         }
                 }
-
                 const int flags = fcntl(client, F_GETFL);
                 if(flags < 0) {
                         close(client);
@@ -708,9 +699,7 @@ static sel_err_t law_server_accept(struct law_server *server)
                         law_log_error(errs, "lawd", "fcntl", strerror(errno));
                         return SEL_FREPORT(errs, SEL_ERR_SYS);
                 }
-
-                struct law_data data;
-                data.u.fd = client;
+                struct law_data data = { .u.fd = client };
                 SEL_TRY_QUIETLY(law_srv_spawn(
                         server, 
                         law_server_trampoline, 
@@ -733,7 +722,7 @@ static sel_err_t law_server_spin(struct law_server *server, int pipe)
                         server->epfd, 
                         server->events, 
                         server->cfg.event_buffer, 
-                        server->cfg.timeout) < 0) 
+                        server->cfg.timeout * 2) < 0) 
                 {
                         const char *str = strerror(errno);
                         law_log_error(errs, "lawd", "epoll_wait", str);

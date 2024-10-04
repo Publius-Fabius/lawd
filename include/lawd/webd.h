@@ -40,9 +40,24 @@ struct law_wd_cfg {
         struct law_data data;                   /** User Data */
 };
 
+/**
+ * Sane configuration.
+ */
 struct law_wd_cfg *law_wd_cfg_sanity();
 
-/** Get the webd's access log. */
+/**
+ * Create a new webd.
+ */
+struct law_webd *law_wd_create(struct law_wd_cfg *cfg);
+
+/**
+ * Destroy the webd.
+ */
+void law_wd_destroy(struct law_webd *webd);
+
+/** 
+ * Get the webd's access log. 
+ */
 FILE *law_wd_access(struct law_webd *webd);
 
 /** 

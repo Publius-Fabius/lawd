@@ -40,7 +40,7 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
         law_srv_poll(w, 1000, 1, &ev);
         law_srv_unwatch(w, sock);
 
-        SEL_TEST(ev.revents | LAW_SRV_PIN);
+        SEL_TEST(ev.revents & LAW_SRV_PIN);
 
         write(sock, out, (size_t)olen);
         write(sock, "pong", 4);
