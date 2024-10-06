@@ -128,13 +128,13 @@ enum law_uri_part {
 struct law_uri_path;
 
 /** Path Iterator */
-struct law_uri_path_iter;
+struct law_uri_path_i;
 
 /** URI Query */
 struct law_uri_query;
 
 /** Query Iterator */
-struct law_uri_query_iter;
+struct law_uri_query_i;
 
 /** Uniform Resource Identifier */
 struct law_uri {
@@ -162,20 +162,20 @@ const char *law_uri_path_at(
 /**
  * Get an iterator for the path's elements.
  */
-struct law_uri_path_iter *law_uri_path_segs(
+struct law_uri_path_i *law_uri_path_segs(
         struct law_uri_path *path);
 
 /**
  * Finish an incomplete iteration.
  */
-void law_uri_path_free(
-        struct law_uri_path_iter *path);
+void law_uri_path_i_free(
+        struct law_uri_path_i *path);
 
 /**
  * Increment the path iterator.
  */
-struct law_uri_path_iter *law_uri_path_next(
-        struct law_uri_path_iter *path,
+struct law_uri_path_i *law_uri_path_i_next(
+        struct law_uri_path_i *path,
         const char **segment);
 
 /**
@@ -194,23 +194,36 @@ const char *law_uri_query_lookup(
 /**
  * Get an iterator for the query's elements.
  */
-struct law_uri_query_iter *law_uri_query_elems(
+struct law_uri_query_i *law_uri_query_elems(
         struct law_uri_query *query);
 
 /**
  * Finish an incomplete iteration.
  */
-void law_uri_query_free(
-        struct law_uri_query_iter *query);
+void law_uri_query_i_free(
+        struct law_uri_query_i *query);
 
 /**
  * Increment the query iterator.
  */
-struct law_uri_query_iter *law_uri_query_next(
-        struct law_uri_query_iter *query,
+struct law_uri_query_i *law_uri_query_i_next(
+        struct law_uri_query_i *query,
         const char **name,
         const char **value);
 
+/** 
+ * Print out URI to FILE.
+ */
+sel_err_t law_uri_fprint(FILE *file, struct law_uri *uri);
+
+/**
+ * Print out URI to IO buffer.
+ */
+sel_err_t law_uri_bprint(struct pgc_buf *buffer);
+
+/**
+ * Populate the URI from an AST.
+ */
 struct law_uri *law_uri_from_ast(
         struct law_uri *uri,
         struct pgc_ast_lst *ast);

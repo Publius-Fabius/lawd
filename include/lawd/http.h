@@ -22,7 +22,7 @@ struct law_ht_sreq;
 struct law_ht_creq;
 
 /** HTTP Request Head */
-struct law_ht_reqhead {
+struct law_ht_req_head {
         const char *method;                     /** Request Method */
         struct law_uri target;                  /** Target URI */
         const char *version;                    /** HTTP Version */
@@ -185,7 +185,7 @@ sel_err_t law_ht_sreq_read_data(struct law_ht_sreq *request);
  */
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
-        struct law_ht_reqhead *head);
+        struct law_ht_req_head *head);
 
 /**
  * Set the status line.
@@ -236,6 +236,9 @@ sel_err_t law_ht_sreq_close(struct law_ht_sreq *request);
  * Get status code description. 
  */
 const char *law_ht_status_str(const int status_code);
+
+/** Sane configuration. */
+struct law_ht_sctx_cfg *law_ht_sctx_cfg_sanity();
 
 /** 
  * Create a new HTTP context. 

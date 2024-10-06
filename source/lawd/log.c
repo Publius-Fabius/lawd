@@ -12,7 +12,7 @@
 #include <errno.h>
 #include <unistd.h>
 
-sel_err_t law_log_get_ip(
+static sel_err_t law_log_get_ip(
         FILE *errs,
         const int sock, 
         char *buf, 
@@ -40,9 +40,45 @@ sel_err_t law_log_get_ip(
         }
 }
 
+/**
+ * CLF := ip-address - - [datetime] "request-line" status-code bytes-sent
+ */
+sel_err_t law_log_access(
+        FILE *access,
+        const int socket,
+        const char *method,
+        struct law_uri *target,
+        const char *version,
+        const int status,
+        const size_t content)
+{
+        char ip_addr[INET6_ADDRSTRLEN];
+        if(law_log_get_ip(
+                stderr, 
+                socket, 
+                ip_addr, 
+                INET6_ADDRSTRLEN) != LAW_ERR_OK) {
+                fprintf(stderr, "errno:%s\r\n", strerror(errno));
+        }
+
+        struct law_time_dtb buf;
+        char *datetime = law_time_datetime(&buf);
+
+        flockfile(access);
+        fprintf(access, 
+                "%s - - [%s] \"%s ", 
+                ip_addr,
+                datetime,
+                method);
+        law_uri_fprint(access, target);
+        fprintf(access, " %s\" %i %zu\r\n", version, status, content);
+        funlockfile(access);
+
+        return LAW_ERR_OK;
+}
+
 sel_err_t law_log_error(
         FILE *errors,
-        const char *package,
         const char *action,
         const char *message)
 {
@@ -53,11 +89,10 @@ sel_err_t law_log_error(
         pid_t tid = gettid();
 
         fprintf(errors, 
-                "[%s] %i %i %s %s \"%s\"\r\n", 
+                "[%s] %i %i %s \"%s\"\r\n", 
                 datetime,
                 pid,
                 tid,
-                package,
                 action,
                 message);
                 
@@ -67,7 +102,6 @@ sel_err_t law_log_error(
 sel_err_t law_log_error_ip(
         FILE *errors,
         const int socket,
-        const char *package,
         const char *action,
         const char *message)
 {
@@ -86,15 +120,14 @@ sel_err_t law_log_error_ip(
         pid_t pid = getpid();
         pid_t tid = gettid();
 
-        SEL_IO(fprintf(errors, 
-               "%s [%s] %i %i %s %s \"%s\"\r\n", 
+        fprintf(errors, 
+               "%s [%s] %i %i %s \"%s\"\r\n", 
                 datetime,
                 ip_addr,
                 pid,
                 tid,
-                package,
                 action,
-                message));
+                message);
                 
         return LAW_ERR_OK;
 }

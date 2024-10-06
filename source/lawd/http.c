@@ -332,7 +332,7 @@ static sel_err_t law_ht_read_head(
 
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
-        struct law_ht_reqhead *head)
+        struct law_ht_req_head *head)
 {
         struct pgc_stk *heap = request->heap;
         struct law_ht_parsers *dict = law_ht_parsers_link();
@@ -686,6 +686,22 @@ sel_err_t law_ht_creq_done(struct law_ht_creq *request)
 }
 
 /* SERVER CONTEXT SECTION ###################################################*/
+
+struct law_ht_sctx_cfg *law_ht_sctx_cfg_sanity()
+{
+        static struct law_ht_sctx_cfg cfg;
+        cfg.in_length = 0x4000;
+        cfg.in_guard = 0x1000;
+        cfg.out_length = 0x4000;
+        cfg.out_guard = 0x1000;
+        cfg.heap_length = 0xF000;
+        cfg.heap_guard = 0x1000;
+        cfg.security = LAW_HT_UNSECURED;
+        cfg.private_key = NULL;
+        cfg.certificate = NULL;
+        cfg.callback = NULL;
+        return &cfg;
+}
 
 struct law_ht_sctx *law_ht_sctx_create(struct law_ht_sctx_cfg *cfg)
 {

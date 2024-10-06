@@ -443,29 +443,29 @@ void test_parse_query()
         SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "d"), ""));
         SEL_ASSERT(law_uri_query_lookup(query, "e") == NULL);
 
-        struct law_uri_query_iter *iter = law_uri_query_elems(query);
+        struct law_uri_query_i *iter = law_uri_query_elems(query);
         SEL_ASSERT(iter);
         
         const char *name;
         const char *value;
 
-        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(law_uri_query_i_next(iter, &name, &value));
         SEL_ASSERT(!strcmp(name, "a"));
         SEL_ASSERT(!strcmp(value, "1"));
 
-        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(law_uri_query_i_next(iter, &name, &value));
         SEL_ASSERT(!strcmp(name, "b"));
         SEL_ASSERT(!strcmp(value, "2"));
 
-        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(law_uri_query_i_next(iter, &name, &value));
         SEL_ASSERT(!strcmp(name, "c"));
         SEL_ASSERT(!strcmp(value, "3"));
 
-        SEL_ASSERT(law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(law_uri_query_i_next(iter, &name, &value));
         SEL_ASSERT(!strcmp(name, "d"));
         SEL_ASSERT(!strcmp(value, ""));
 
-        SEL_ASSERT(!law_uri_query_next(iter, &name, &value));
+        SEL_ASSERT(!law_uri_query_i_next(iter, &name, &value));
 }
 
 void test_parse_path()
@@ -491,15 +491,15 @@ void test_parse_path()
         SEL_ASSERT(!strcmp(law_uri_path_at(path, -3), "abc"));
 
         const char *segment;
-        struct law_uri_path_iter *iter = law_uri_path_segs(path);
+        struct law_uri_path_i *iter = law_uri_path_segs(path);
 
-        SEL_ASSERT(law_uri_path_next(iter, &segment));
+        SEL_ASSERT(law_uri_path_i_next(iter, &segment));
         SEL_ASSERT(!strcmp(segment, "abc"));
-        SEL_ASSERT(law_uri_path_next(iter, &segment));
+        SEL_ASSERT(law_uri_path_i_next(iter, &segment));
         SEL_ASSERT(!strcmp(segment, "def"));
-        SEL_ASSERT(law_uri_path_next(iter, &segment));
+        SEL_ASSERT(law_uri_path_i_next(iter, &segment));
         SEL_ASSERT(!strcmp(segment, "g"));
-        SEL_ASSERT(!law_uri_path_next(iter, &segment));
+        SEL_ASSERT(!law_uri_path_i_next(iter, &segment));
 }
 
 int main(int argc, char ** args)

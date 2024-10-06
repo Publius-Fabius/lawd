@@ -8,7 +8,7 @@
  * CLF := ip-address - - [datetime] "request-line" status-code bytes-sent
  */
 sel_err_t law_log_access(
-        FILE *stream,
+        FILE *access,
         const int socket,
         const char *method,
         struct law_uri *target,
@@ -21,17 +21,15 @@ sel_err_t law_log_access(
  */
 sel_err_t law_log_error(
         FILE *stream,
-        const char *package,
         const char *action,
         const char *message);
 
 /**
- * ip-address [datetime] pid tid package action "message"
+ * ip-address [datetime] pid tid action "message"
  */
 sel_err_t law_log_error_ip(
         FILE *stream,
         const int socket,
-        const char *package,
         const char *action,
         const char *message);
 

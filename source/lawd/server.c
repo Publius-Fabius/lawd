@@ -329,6 +329,11 @@ int law_srv_socket(struct law_server *server)
         return server->socket;
 }
 
+FILE *law_srv_errors(struct law_server *server)
+{
+        return server->cfg.errors;
+}
+
 struct law_task *law_task_create(
         law_srv_call_t callback,
         struct law_data *data,

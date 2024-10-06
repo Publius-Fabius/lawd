@@ -174,13 +174,23 @@ lib/liblawd.a : \
 	build/lawd/safemem.o \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
+	build/lawd/pqueue.o \
+	build/lawd/cqueue.o \
 	build/lawd/server.o \
 	build/lawd/uri_parsers.o \
 	build/lawd/uri.o \
 	build/lawd/http_parsers.o \
 	build/lawd/http.o \
+	build/lawd/time.o \
+	build/lawd/log.o \
 	build/lawd/webd.o
 	ar -crs $@ $^
+
+bin/test_websock: tests/lawd/websock.c \
+	lib/liblawd.a \
+	lib/libpgenc.a \
+	lib/libselc.a 
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
 
 # hello world http app
 bin/hello : tests/lawd/hello.c \
