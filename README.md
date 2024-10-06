@@ -18,6 +18,7 @@ probably won't work for you.
 - lawd/uri.h - URI parsing and data extraction.
 - lawd/http.h - Primitive HTTP message parsing, connection state, and IO.
 - lawd/webd.h - A simple HTTP daemon built on top of http.h.
+- lawd/websocket.h - Web Sockets implementation.
 - grammar/http.g - Parser grammar for HTTP syntax.
 - grammar/uri.g - Parser grammar for URI syntax.
 
