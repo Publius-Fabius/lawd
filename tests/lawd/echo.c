@@ -31,9 +31,9 @@ sel_err_t echo_handler(
         struct law_ht_req_head *head,
         struct law_data data)
 { 
-        uint8_t raw_buf[4096];
+        uint8_t raw_buf[0x2000];
         struct pgc_buf buf;
-        pgc_buf_init(&buf, raw_buf, 4096, 0);
+        pgc_buf_init(&buf, raw_buf, 0x2000, 0);
 
         SEL_TRY(pgc_buf_printf(&buf, "%s ", head->method));
         SEL_TRY(law_uri_bprint(&buf, &head->target));
