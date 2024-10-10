@@ -38,7 +38,22 @@ sel_err_t law_uri_fprint(FILE *file, struct law_uri *uri)
         return LAW_ERR_OK;
 }
 
-sel_err_t law_uri_bprint(struct pgc_buf *buffer);
+sel_err_t law_uri_bprint(struct pgc_buf *buf, struct law_uri *uri)
+{
+        if(uri->scheme) {
+                SEL_TRY_QUIETLY(pgc_buf_printf(buf, "%s://", uri->scheme));
+        }
+        if(uri->host) {
+                SEL_TRY_QUIETLY(pgc_buf_printf(buf, "%s", uri->host));
+        }
+        if(uri->path) {
+                SEL_TRY_QUIETLY(pgc_buf_printf(buf, "%s", uri->path));
+        }
+        if(uri->query) {
+                SEL_TRY_QUIETLY(pgc_buf_printf(buf, "?%s", uri->query));
+        }
+        return LAW_ERR_OK;
+}
 
 struct law_uri *law_uri_from_ast(
         struct law_uri *uri,

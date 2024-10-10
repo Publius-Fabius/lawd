@@ -70,7 +70,7 @@ sel_err_t law_wd_flush(struct law_ht_sreq *req)
         if(end - offset == 0) {
                 return LAW_ERR_OK;
         }
-        return LAW_ERR_WNTW;
+        return LAW_ERR_OK;
 }
 
 sel_err_t law_wd_log_error(

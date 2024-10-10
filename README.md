@@ -21,6 +21,7 @@ probably won't work for you.
 - lawd/websocket.h - Web Sockets implementation.
 - grammar/http.g - Parser grammar for HTTP syntax.
 - grammar/uri.g - Parser grammar for URI syntax.
+ 
 
 **Server Architecture**
 
@@ -34,7 +35,7 @@ used, and timer events are handled with a binary heap.
 
 **Example**
 
-Host a simple ping server over TCP.  The code is available at tests/lawd/ping.c.
+Host a simple echo server.  The code is available at tests/lawd/echo.c.
 
 ```
 mkdir ~/clones
@@ -45,6 +46,6 @@ git clone https://github.com/Publius-Fabius/pgenc.git
 git clone https://github.com/Publius-Fabius/lawd.git
 
 cd lawd
-make bin/ping
-sudo bin/ping
+make bin/echo
+sudo bin/echo
 ```

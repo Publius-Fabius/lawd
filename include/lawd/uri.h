@@ -218,7 +218,7 @@ sel_err_t law_uri_fprint(FILE *file, struct law_uri *uri);
 /**
  * Print out URI to IO buffer.
  */
-sel_err_t law_uri_bprint(struct pgc_buf *buffer);
+sel_err_t law_uri_bprint(struct pgc_buf *buffer, struct law_uri *uri);
 
 /**
  * Populate the URI from an AST.

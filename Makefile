@@ -188,6 +188,12 @@ lib/liblawd.a : \
 	build/lawd/webd.o
 	ar -crs $@ $^
 
+bin/echo : tests/lawd/echo.c \
+	lib/liblawd.a \
+	lib/libpgenc.a \
+	lib/libselc.a 
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
+	
 bin/test_websock: tests/lawd/websock.c \
 	lib/liblawd.a \
 	lib/libpgenc.a \
