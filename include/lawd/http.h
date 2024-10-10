@@ -30,7 +30,7 @@ struct law_ht_req_head {
 };
 
 /** HTTP Response Head */
-struct law_ht_reshead {
+struct law_ht_res_head {
         const char *version;                    /** HTTP Version */
         int status;                             /** Status Code */
         struct law_ht_hdrs *headers;            /** Header Fields */
@@ -350,7 +350,7 @@ ssize_t law_ht_creq_read_data(struct law_ht_creq *request);
  */
 sel_err_t law_ht_creq_read_head(
         struct law_ht_creq *request,
-        struct law_ht_reshead *head);
+        struct law_ht_res_head *head);
 
 /**
  * Done reading response.
@@ -433,78 +433,49 @@ enum law_ht_tag {
         LAW_HT_AUTHORITY_FORM           /** Authority URI Form */
 };
 
-enum pgc_err law_ht_cap_status(
+sel_err_t law_ht_cap_status(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_method(
+sel_err_t law_ht_cap_method(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_version(
+sel_err_t law_ht_cap_version(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_field_name(
+sel_err_t law_ht_cap_field_name(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_field_value(
+sel_err_t law_ht_cap_field_value(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_field(
+sel_err_t law_ht_cap_field(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_origin_form(
+sel_err_t law_ht_cap_origin_form(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_absolute_form(
+sel_err_t law_ht_cap_absolute_form(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
-enum pgc_err law_ht_cap_authority_form(
+sel_err_t law_ht_cap_authority_form(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
-
-/** Export and Link */
-
-struct law_ht_parsers *export_law_ht_parsers();
-
-struct law_ht_parsers *law_ht_parsers_link();
-
-/* Auto-Generated Parsers */
-
-struct law_ht_parsers;
-
-struct pgc_par *law_ht_parsers_tchar(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_token(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_cap_absolute_URI(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_cap_origin_URI(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_cap_authority(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_request_target(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_HTTP_name(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_HTTP_version(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_request_line(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_field_content(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_field_value(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_header_field(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_cap_field(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_status_code(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_reason_phrase(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_status_line(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_request_head(struct law_ht_parsers *x);
-struct pgc_par *law_ht_parsers_response_head(struct law_ht_parsers *x);
+        const struct pgc_par *arg);
 
 #endif

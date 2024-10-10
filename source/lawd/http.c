@@ -211,7 +211,7 @@ static sel_err_t law_ht_read_SSL(
         int ssl_err;
         
         ERR_clear_error();
-        const enum pgc_err err = pgc_buf_sread(in, ssl, nbytes, &ssl_err);
+        const sel_err_t err = pgc_buf_sread(in, ssl, nbytes, &ssl_err);
 
         SEL_ASSERT(err != PGC_ERR_OOB);
 
@@ -237,7 +237,7 @@ static sel_err_t law_ht_read_sys(
         int socket,
         const size_t nbytes)
 {
-        const enum pgc_err err = pgc_buf_read(in, socket, nbytes);
+        const sel_err_t err = pgc_buf_read(in, socket, nbytes);
 
         SEL_ASSERT(err != PGC_ERR_OOB);
 
@@ -279,7 +279,7 @@ static sel_err_t law_ht_read_data(struct law_ht_conn *conn)
 
 static sel_err_t law_ht_read_head(
         struct law_ht_conn *conn,
-        struct pgc_par *parser,
+        const struct pgc_par *parser,
         struct pgc_stk *heap,
         struct pgc_ast_lst **head)
 {
@@ -292,7 +292,7 @@ static sel_err_t law_ht_read_head(
 
         const sel_err_t read_err = law_ht_read_data(conn); 
 
-        enum pgc_err err = pgc_buf_scan(in, (void*)CRLF2, CRLF2_LEN);
+        sel_err_t err = pgc_buf_scan(in, (void*)CRLF2, CRLF2_LEN);
 
         if(err != PGC_ERR_OK) {
                 const size_t end = pgc_buf_end(in);
@@ -330,13 +330,14 @@ static sel_err_t law_ht_read_head(
         return LAW_ERR_OK;
 }
 
+extern const struct pgc_par law_ht_par_request_head;
+
 sel_err_t law_ht_sreq_read_head(
         struct law_ht_sreq *request,
         struct law_ht_req_head *head)
 {
         struct pgc_stk *heap = request->heap;
-        struct law_ht_parsers *dict = law_ht_parsers_link();
-        struct pgc_par *head_par = law_ht_parsers_request_head(dict);
+        const struct pgc_par *head_par = &law_ht_par_request_head;
 
         struct pgc_ast_lst *list;
 
@@ -402,7 +403,7 @@ static sel_err_t law_ht_write_sys(
         int socket,
         const size_t nbytes)
 {
-        enum pgc_err err = pgc_buf_write(out, socket, nbytes);
+        sel_err_t err = pgc_buf_write(out, socket, nbytes);
 
         SEL_ASSERT(err != PGC_ERR_OOB);
 
@@ -425,7 +426,7 @@ static sel_err_t law_ht_write_SSL(
         int ssl_err;
         
         ERR_clear_error();
-        const enum pgc_err err = pgc_buf_swrite(out, ssl, nbytes, &ssl_err);
+        const sel_err_t err = pgc_buf_swrite(out, ssl, nbytes, &ssl_err);
 
         SEL_ASSERT(err != PGC_ERR_OOB);
 
@@ -496,7 +497,7 @@ struct law_ht_creq *law_ht_creq_create(struct law_ht_creq_cfg *cfg)
         struct law_smem *heap_mem = law_smem_create(heaplen, heapgrd);
 
         struct pgc_stk *heap = malloc(sizeof(struct pgc_stk));
-        pgc_stk_init(heap, heaplen, law_smem_address(heap_mem));
+        pgc_stk_init(heap, law_smem_address(heap_mem), heaplen);
 
         struct pgc_buf *in = malloc(sizeof(struct pgc_buf));
         struct pgc_buf *out = malloc(sizeof(struct pgc_buf));
@@ -646,13 +647,14 @@ sel_err_t law_ht_creq_send(struct law_ht_creq *request)
 
 /* status-line = HTTP-version SP status-code SP reason-phrase CRLF */
 
+extern const struct pgc_par law_ht_par_response_head;
+
 sel_err_t law_ht_creq_read_head(
         struct law_ht_creq *request,
-        struct law_ht_reshead *head)
+        struct law_ht_res_head *head)
 {
         struct pgc_stk *heap = request->heap;
-        struct law_ht_parsers *dict = law_ht_parsers_link();
-        struct pgc_par *head_par = law_ht_parsers_response_head(dict);
+        const struct pgc_par *head_par = &law_ht_par_response_head;
 
         struct pgc_ast_lst *list;
 
@@ -772,7 +774,7 @@ sel_err_t law_ht_accept(
         struct law_smem *heap_mem = law_smem_create(heap_length, heap_guard);
 
         struct pgc_stk heap;
-        pgc_stk_init(&heap, heap_length, law_smem_address(heap_mem));
+        pgc_stk_init(&heap, law_smem_address(heap_mem), heap_length);
 
         struct pgc_buf in, out;
         pgc_buf_init(&in, law_smem_address(in_mem), in_length, 0);
@@ -858,14 +860,16 @@ const char *law_ht_status_str(const int code)
 
 /* PARSER SECTION ###########################################################*/
 
-static enum pgc_err law_ht_read_uint32(
+static sel_err_t law_ht_read_uint32(
         struct pgc_buf *buffer,
         void *state,
+        const size_t start,
         const int16_t tag)
 {
         return pgc_lang_readenc(
                 buffer, 
                 state, 
+                start,
                 PGC_AST_UINT32, 
                 LAW_HT_STATUS, 
                 10, 
@@ -873,110 +877,80 @@ static enum pgc_err law_ht_read_uint32(
                 pgc_buf_decode_uint32);
 }
 
-enum pgc_err law_ht_cap_status(
+sel_err_t law_ht_cap_status(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_HT_METHOD, law_ht_read_uint32);
 }
 
-enum pgc_err law_ht_cap_method(
+sel_err_t law_ht_cap_method(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_HT_METHOD, pgc_lang_readstr);
 }
 
-enum pgc_err law_ht_cap_version(
+sel_err_t law_ht_cap_version(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_HT_VERSION, pgc_lang_readstr);
 }
 
-enum pgc_err law_ht_cap_field_name(
+sel_err_t law_ht_cap_field_name(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_HT_FIELD_NAME, pgc_lang_readstr);
 }
 
-enum pgc_err law_ht_cap_field_value(
+sel_err_t law_ht_cap_field_value(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_HT_FIELD_VALUE, pgc_lang_readstr);
 }
 
-enum pgc_err law_ht_cap_field(
+sel_err_t law_ht_cap_field(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readexp(buffer, state, arg, LAW_HT_FIELD, 0);
 }
 
-enum pgc_err law_ht_cap_origin_form(
+sel_err_t law_ht_cap_origin_form(
         struct pgc_buf *buf,
         void *st,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readexp(buf, st, arg, LAW_HT_ORIGIN_FORM, 0);
 }
 
-enum pgc_err law_ht_cap_absolute_form(
+sel_err_t law_ht_cap_absolute_form(
         struct pgc_buf *buf,
         void *st,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readexp(buf, st, arg, LAW_HT_ABSOLUTE_FORM, 0);
 }
 
-enum pgc_err law_ht_cap_authority_form(
+sel_err_t law_ht_cap_authority_form(
         struct pgc_buf *buf,
         void *st,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readexp(buf, st, arg, LAW_HT_AUTHORITY_FORM, 0);
 }
 
-struct law_ht_parsers *law_ht_parsers_link()
-{
-        /*      dec cap_absolute_URI;
-                dec cap_origin_URI;
-                dec cap_authority; */
-
-        static struct law_ht_parsers *https = NULL;
-        static struct law_uri_parsers *urips = NULL;
-
-        if(https) {
-                return https;
-        }
-
-        https = export_law_ht_parsers();
-        urips = export_law_uri_parsers();
-
-        struct pgc_par *abs_URI = law_uri_parsers_cap_absolute_URI(urips);
-        struct pgc_par *ori_URI = law_uri_parsers_cap_origin_URI(urips);
-        struct pgc_par *cap_auth = law_uri_parsers_cap_authority(urips);
-
-        struct pgc_par *abs_URI_l = law_ht_parsers_cap_absolute_URI(https);
-        struct pgc_par *ori_URI_l = law_ht_parsers_cap_origin_URI(https);
-        struct pgc_par *cap_auth_l = law_ht_parsers_cap_authority(https);
-
-        abs_URI_l->u.lnk = abs_URI;
-        ori_URI_l->u.lnk = ori_URI;
-        cap_auth_l->u.lnk = cap_auth;
-
-        return https;
-}

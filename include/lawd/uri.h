@@ -181,13 +181,12 @@ struct law_uri_path_i *law_uri_path_i_next(
 /**
  * Get the number of query elements in the collection.
  */
-size_t law_uri_query_count(
-        struct law_uri_query *query);
+size_t law_uri_query_count(struct law_uri_query *query);
 
 /** 
  * Get the query value by name. 
  */
-const char *law_uri_query_lookup(
+const char *law_uri_query_get(
         struct law_uri_query *query, 
         char *name);
 
@@ -232,7 +231,7 @@ struct law_uri *law_uri_from_ast(
  * Parse the URI starting at the buffer's current offset.
  */
 sel_err_t law_uri_parse(
-        struct pgc_par *parser,
+        const struct pgc_par *parser,
         struct pgc_buf *buffer,
         struct pgc_stk *heap,
         struct law_uri *uri);
@@ -250,89 +249,39 @@ sel_err_t law_uri_parse_path(
         struct law_uri_path **path);
 
 /** Capture scheme component. */
-enum pgc_err law_uri_cap_scheme(
+sel_err_t law_uri_cap_scheme(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
 /** Capture host component. */
-enum pgc_err law_uri_cap_host(
+sel_err_t law_uri_cap_host(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
 /** Capture port component. */
-enum pgc_err law_uri_cap_port(
+sel_err_t law_uri_cap_port(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
 /** Capture path component. */
-enum pgc_err law_uri_cap_path(
+sel_err_t law_uri_cap_path(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
 /** Capture query token. */
-enum pgc_err law_uri_cap_token(
+sel_err_t law_uri_cap_token(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
+        const struct pgc_par *arg);
 
 /** Capture query element. */
-enum pgc_err law_uri_cap_elem(
+sel_err_t law_uri_cap_elem(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg);
-
-/** URI Parser Collection */
-struct law_uri_parsers;
-
-/** Get the static URI parser collection. */
-struct law_uri_parsers *export_law_uri_parsers();
-
-struct pgc_par *law_uri_parsers_sub_delims(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_gen_delims(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_reserved(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_unreserved(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_scheme(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_dec_octet(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_IPv4address(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_IPv6address(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_pct_encoded(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_reg_name(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_host(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_port(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_authority(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_path_absolute(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_path(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_query(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_URI(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_URI_reference(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_absolute_URI(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_cap_authority(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_cap_origin_URI(struct law_uri_parsers *pars);
-
-struct pgc_par *law_uri_parsers_cap_absolute_URI(struct law_uri_parsers *pars);
+        const struct pgc_par *arg);
 
 #endif

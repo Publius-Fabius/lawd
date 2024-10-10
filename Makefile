@@ -129,13 +129,15 @@ bin/ping: tests/lawd/ping.c \
 	build/lawd/cqueue.o \
 	build/lawd/time.o \
 	build/lawd/log.o \
+	build/lawd/uri.o \
+	build/lawd/uri_parsers.o \
+	lib/libpgenc.a \
 	lib/libselc.a 
-	$(CC) $(CFLAGS) -o $@ $^
-
+	$(CC) $(CFLAGS) -o $@ $^ -lssl
 
 # uri.h 
 tmp/lawd/uri_parsers.c : grammar/uri.g bin/pgenc
-	bin/pgenc -g $< -s $@ -d law_uri_parsers
+	bin/pgenc -g $< -s $@ -d law_uri_par
 build/lawd/uri.o : source/lawd/uri.c include/lawd/uri.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 build/lawd/uri_parsers.o : tmp/lawd/uri_parsers.c 
@@ -145,11 +147,11 @@ bin/test_uri : tests/lawd/uri.c \
 	build/lawd/uri.o \
 	lib/libselc.a \
 	lib/libpgenc.a 
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lssl
 
 # http.h
 tmp/lawd/http_parsers.c : grammar/http.g bin/pgenc
-	bin/pgenc -g $< -s $@ -d law_ht_parsers
+	bin/pgenc -g $< -s $@ -d law_ht_par
 build/lawd/http_parsers.o : tmp/lawd/http_parsers.c includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 build/lawd/http.o : source/lawd/http.c 
@@ -160,9 +162,9 @@ bin/test_http: tests/lawd/http.c \
 	build/lawd/http.o \
 	build/lawd/uri.o \
 	build/lawd/safemem.o \
-	lib/libselc.a \
-	lib/libpgenc.a
-	$(CC) $(CFLAGS) -o $@ $^
+	lib/libpgenc.a \
+	lib/libselc.a 
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
 
 # webd.h
 build/lawd/webd.o : source/lawd/webd.c includes
@@ -187,13 +189,6 @@ lib/liblawd.a : \
 	ar -crs $@ $^
 
 bin/test_websock: tests/lawd/websock.c \
-	lib/liblawd.a \
-	lib/libpgenc.a \
-	lib/libselc.a 
-	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
-
-# hello world http app
-bin/hello : tests/lawd/hello.c \
 	lib/liblawd.a \
 	lib/libpgenc.a \
 	lib/libselc.a 

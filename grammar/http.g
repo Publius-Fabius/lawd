@@ -24,8 +24,8 @@ let CRLF = %0D %0A;
 #       / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
 #       / DIGIT / ALPHA
 set tchar = '!' + '#' + '$' + '%' + '&' + ''' + '*' 
-		  + '+' + '-' + '.' + '^' + '_' + '`' + '|' + '~'
-          + DIGIT + ALPHA;
+        + '+' + '-' + '.' + '^' + '_' + '`' + '|' + '~'
+        + DIGIT + ALPHA;
 
 # token = 1*tchar
 let token = 1_127(tchar);
@@ -35,10 +35,9 @@ let token = 1_127(tchar);
 # authority_form = authority
 # asterisk_form = "*"
 
-# These must be linked with URI parsers at runtime.
-dec cap_absolute_URI;
-dec cap_origin_URI;
-dec cap_authority;
+ext law_uri_par cap_absolute_URI;
+ext law_uri_par cap_origin_URI;
+ext law_uri_par cap_authority;
 
 # Since asterisk is a perfectly valid authority (asterisk is a sub-delim),
 # that form is left out.

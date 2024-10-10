@@ -3,6 +3,8 @@
 #include "pgenc/lang.h"
 #include <string.h>
 
+extern const struct pgc_par law_uri_par_sub_delims;
+
 void test_sub_delims()
 {
         SEL_INFO();
@@ -10,8 +12,7 @@ void test_sub_delims()
         /* sub_delims  = "!" | "$" | "&" | "'" | "(" | ")"
                          | "*" | "+" | "," | ";" | "=" */
 
-        struct pgc_par *sub_delims = law_uri_parsers_sub_delims(
-                export_law_uri_parsers());
+        const struct pgc_par *sub_delims = &law_uri_par_sub_delims;
         
         /* Test inclusion in set. */
         SEL_ASSERT(pgc_par_runs(sub_delims, "!", NULL) > 0);
@@ -33,14 +34,15 @@ void test_sub_delims()
         SEL_ASSERT(pgc_par_runs(sub_delims, "0", NULL) < 0);
 }
 
+extern const struct pgc_par law_uri_par_gen_delims;
+
 void test_gen_delims()
 {
         SEL_INFO();
 
         /* gen_delims = ":" | "/" | "?" | "#" | "[" | "]" | "@" */
 
-        struct pgc_par *gen_delims = law_uri_parsers_gen_delims(
-                export_law_uri_parsers());
+        const struct pgc_par *gen_delims = &law_uri_par_gen_delims;
 
         SEL_ASSERT(pgc_par_runs(gen_delims, ":", NULL) > 0);
         SEL_ASSERT(pgc_par_runs(gen_delims, "/", NULL) > 0);
@@ -57,14 +59,15 @@ void test_gen_delims()
         SEL_ASSERT(pgc_par_runs(gen_delims, "0", NULL) < 0);
 }
 
+extern const struct pgc_par law_uri_par_reserved;
+
 void test_reserved()
 {
         SEL_INFO();
 
         /* reserved = gen_delims | sub_delims */
 
-        struct pgc_par *reserved = law_uri_parsers_reserved(
-                export_law_uri_parsers());
+        const struct pgc_par *reserved = &law_uri_par_reserved;
         
         /* Test inclusion in set. */
         SEL_ASSERT(pgc_par_runs(reserved, "!", NULL) > 0);
@@ -94,14 +97,15 @@ void test_reserved()
         SEL_ASSERT(pgc_par_runs(reserved, "0", NULL) < 0);
 }
 
+extern const struct pgc_par law_uri_par_unreserved;
+
 void test_unreserved()
 {
         SEL_INFO();
 
         /* unreserved = ALPHA | DIGIT | "-" | "." | "_" | "~" */
 
-        struct pgc_par *unreserved = law_uri_parsers_unreserved(
-                export_law_uri_parsers());
+        const struct pgc_par *unreserved = &law_uri_par_unreserved;
 
         SEL_ASSERT(pgc_par_runs(unreserved, "A", NULL) > 0);
         SEL_ASSERT(pgc_par_runs(unreserved, "a", NULL) > 0);
@@ -119,14 +123,15 @@ void test_unreserved()
         SEL_ASSERT(pgc_par_runs(unreserved, ")", NULL) < 0);
 }
 
+extern const struct pgc_par law_uri_par_scheme;
+
 void test_scheme()
 {
         SEL_INFO();
 
         /* scheme = ALPHA *( ALPHA | DIGIT | "+" | "-" | "." ) */
 
-        struct pgc_par *scheme = law_uri_parsers_scheme(
-                export_law_uri_parsers());
+        const struct pgc_par *scheme = &law_uri_par_scheme;
 
         SEL_ASSERT(pgc_par_runs(scheme, "H1+-.~~", NULL) == 5);
 
@@ -134,6 +139,8 @@ void test_scheme()
         SEL_ASSERT(pgc_par_runs(scheme, "[", NULL) < 0);
         SEL_ASSERT(pgc_par_runs(scheme, "+", NULL) < 0);
 }
+
+extern const struct pgc_par law_uri_par_dec_octet;
 
 void test_dec_octet()
 {
@@ -145,8 +152,7 @@ void test_dec_octet()
          *               | "2" %x30-34 DIGIT     ; 200-249
          *               | "25" %x30-35          ; 250-255 */
 
-        struct pgc_par *dec_octet = law_uri_parsers_dec_octet(
-                export_law_uri_parsers());
+        const struct pgc_par *dec_octet = &law_uri_par_dec_octet;
 
         SEL_ASSERT(pgc_par_runs(dec_octet, "0a", NULL) == 1);
         SEL_ASSERT(pgc_par_runs(dec_octet, "10a", NULL) == 2);
@@ -164,6 +170,8 @@ void test_dec_octet()
         SEL_ASSERT(pgc_par_runs(dec_octet, "[", NULL) < 0);
 }
 
+extern const struct pgc_par law_uri_par_IPv4address;
+
 void test_IPv4address()
 {
         SEL_INFO();
@@ -171,8 +179,7 @@ void test_IPv4address()
         /* IPv4address = 
                 dec-octet "." dec-octet "." dec-octet "." dec-octet */
 
-        struct pgc_par *IPv4addr = law_uri_parsers_IPv4address(
-                export_law_uri_parsers());
+        const struct pgc_par *IPv4addr = &law_uri_par_IPv4address;
 
         SEL_ASSERT(pgc_par_runs(IPv4addr, "128.128.128.128", NULL) == 15);
         SEL_ASSERT(pgc_par_runs(IPv4addr, "255.255.255.255", NULL) == 15);
@@ -186,18 +193,14 @@ void test_IPv4address()
         SEL_ASSERT(pgc_par_runs(IPv4addr, "[", NULL) < 0);
 }
 
+extern const struct pgc_par law_uri_par_IPv6address;
+
 void test_IPv6address()
 {
         SEL_INFO();
 
- /* IPv6address */
+        const struct pgc_par *IPv6addr = &law_uri_par_IPv6address;
 
-        struct pgc_par *IPv6addr = law_uri_parsers_IPv6address(
-                export_law_uri_parsers());
-
-                /*
-
-*/
         SEL_ASSERT(pgc_par_runs(IPv6addr, 
                 "2001:0db8:85a3:0000:0000:8a2e:0370:7334", 
                 NULL) == 39);
@@ -232,9 +235,6 @@ void test_IPv6address()
                 "2001:db8::1:0:0:1", 
                 NULL) == 17);
 
-/*
-
-*/
         /* Test exclusion from set. */
         SEL_ASSERT(pgc_par_runs(IPv6addr, 
                 "255.255.256.255", 
@@ -256,14 +256,15 @@ void test_IPv6address()
                 NULL) < 0);
 }
 
+extern const struct pgc_par law_uri_par_reg_name;
+
 void test_reg_name()
 {
         SEL_INFO();
 
         /* reg_name = *( unreserved | pct_encoded | sub_delims ) */
 
-        struct pgc_par *reg_name = law_uri_parsers_reg_name(
-                export_law_uri_parsers());
+        const struct pgc_par *reg_name = &law_uri_par_reg_name;
 
         SEL_ASSERT(pgc_par_runs(reg_name, "", NULL) == 0);
         SEL_ASSERT(pgc_par_runs(reg_name, "abc%20", NULL) == 6);
@@ -275,6 +276,8 @@ void test_reg_name()
         SEL_ASSERT(pgc_par_runs(reg_name, "@", NULL) == 0);
 }
 
+extern const struct pgc_par law_uri_par_authority;
+
 void test_authority()
 {
         SEL_INFO();
@@ -283,8 +286,7 @@ void test_authority()
          * port = *DIGIT
          * authority = host [ ":" port ] */
 
-        struct pgc_par *authority = law_uri_parsers_authority(
-                export_law_uri_parsers());
+        const struct pgc_par *authority = &law_uri_par_authority;
 
         SEL_ASSERT(pgc_par_runs(authority, "[::1]:500", NULL) == 9);
         SEL_ASSERT(pgc_par_runs(authority, "abc%20:70/", NULL) == 9);
@@ -296,13 +298,13 @@ void test_authority()
 }
 
 enum pgc_err test_lang_parse(
-        struct pgc_par *parser, 
+        const struct pgc_par *parser, 
         char *text,
         struct pgc_ast_lst **result)
 {
         static char bytes[0x2000];
         struct pgc_stk stk;
-        pgc_stk_init(&stk, 0x2000, bytes);
+        pgc_stk_init(&stk, bytes, 0x2000);
 
         struct pgc_buf buf;
         size_t text_len = strlen(text);
@@ -311,12 +313,13 @@ enum pgc_err test_lang_parse(
         return pgc_lang_parse(parser, &buf, &stk, result);
 }
 
+extern const struct pgc_par law_uri_par_cap_authority;
+
 void test_cap_authority()
 {
         SEL_INFO();
 
-        struct pgc_par *auth = law_uri_parsers_cap_authority(
-                export_law_uri_parsers());
+        const struct pgc_par *auth = &law_uri_par_cap_authority;
 
         struct pgc_ast_lst *result;
         struct pgc_ast *value;
@@ -331,12 +334,13 @@ void test_cap_authority()
         SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "21"));
 }
 
+extern const struct pgc_par law_uri_par_cap_absolute_URI;
+
 void test_cap_absolute_URI()
 {
         SEL_INFO();
 
-        struct pgc_par *uri = law_uri_parsers_cap_absolute_URI(
-                export_law_uri_parsers());
+        const struct pgc_par *uri = &law_uri_par_cap_absolute_URI;
 
         struct pgc_ast_lst *result;
         struct pgc_ast *value;
@@ -363,12 +367,13 @@ void test_cap_absolute_URI()
         SEL_ASSERT(!strcmp(pgc_ast_tostr(value), "query"));
 }
 
+extern const struct pgc_par law_uri_par_cap_origin_URI;
+
 void test_cap_origin_URI()
 {
         SEL_INFO();
 
-        struct pgc_par *uri = law_uri_parsers_cap_origin_URI(
-                export_law_uri_parsers());
+        const struct pgc_par *uri = &law_uri_par_cap_origin_URI;
 
         struct pgc_ast_lst *result;
         struct pgc_ast *value;
@@ -387,13 +392,13 @@ void test_cap_origin_URI()
 }
 
 enum pgc_err test_uri_parses(
-        struct pgc_par *parser, 
+        const struct pgc_par *parser, 
         char *text,
         struct law_uri *uri)
 {
         static char bytes[0x2000];
         struct pgc_stk stk;
-        pgc_stk_init(&stk, 0x2000, bytes);
+        pgc_stk_init(&stk, bytes, 0x2000);
 
         struct pgc_buf buf;
         size_t text_len = strlen(text);
@@ -406,8 +411,7 @@ void test_uri_parse()
 {
         SEL_INFO();
 
-        struct pgc_par *uri = law_uri_parsers_cap_absolute_URI(
-                export_law_uri_parsers());
+        const struct pgc_par *uri = &law_uri_par_cap_absolute_URI;
 
         struct law_uri result;
 
@@ -428,7 +432,7 @@ void test_parse_query()
 
         static char bytes[0x1000];
         struct pgc_stk heap;
-        pgc_stk_init(&heap, 0x1000, bytes);
+        pgc_stk_init(&heap, bytes, 0x1000);
 
         struct law_uri_query *query;
 
@@ -437,11 +441,11 @@ void test_parse_query()
                 &heap,
                 &query) == SEL_ERR_OK);
         SEL_ASSERT(law_uri_query_count(query) == 4);
-        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "a"), "1"));
-        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "b"), "2"));
-        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "c"), "3"));
-        SEL_ASSERT(!strcmp(law_uri_query_lookup(query, "d"), ""));
-        SEL_ASSERT(law_uri_query_lookup(query, "e") == NULL);
+        SEL_ASSERT(!strcmp(law_uri_query_get(query, "a"), "1"));
+        SEL_ASSERT(!strcmp(law_uri_query_get(query, "b"), "2"));
+        SEL_ASSERT(!strcmp(law_uri_query_get(query, "c"), "3"));
+        SEL_ASSERT(!strcmp(law_uri_query_get(query, "d"), ""));
+        SEL_ASSERT(law_uri_query_get(query, "e") == NULL);
 
         struct law_uri_query_i *iter = law_uri_query_elems(query);
         SEL_ASSERT(iter);
@@ -474,7 +478,7 @@ void test_parse_path()
 
         static char bytes[0x1000];
         struct pgc_stk heap;
-        pgc_stk_init(&heap, 0x1000, bytes);
+        pgc_stk_init(&heap, bytes, 0x1000);
 
         struct law_uri_path *path;
 

@@ -31,6 +31,9 @@ struct law_server;
 /** Worker Thread */
 struct law_worker;
 
+/** Worker Task */
+struct law_task;
+
 /** IO Event */
 struct law_event {
         int fd;                         /** The event's file descriptor. */
@@ -146,6 +149,13 @@ sel_err_t law_srv_poll(
         int64_t timeout,
         const int event_count, 
         struct law_event *events);
+
+/**
+ * Wake the task (eventually).  This function should be thread-safe.
+ */
+sel_err_t law_srv_wake(
+        struct law_worker *worker,
+        struct law_task *task);
 
 /**
  * Yield the coroutine and wait for IO events to occur or a certain ammount 

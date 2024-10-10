@@ -19,6 +19,7 @@ struct law_ws_accept_buf {
         uint8_t bytes[LAW_WS_MAX_ACCEPT];
 };
 
+/** WebSocket Masking Key Length */
 #define LAW_WS_MASKING_KEY_LEN 4
 
 /** WebSocket Masking Key */
@@ -26,8 +27,15 @@ struct law_ws_masking_key {
         uint8_t bytes[LAW_WS_MASKING_KEY_LEN];
 };
 
+/** XOR Encryption Context */
+struct law_ws_xor {
+        struct law_ws_masking_key *masking_key;
+        size_t offset;
+};
+
 /** Web Socket Frame Header */
-struct law_ws_frame_head {
+struct law_ws_head {
+        uint8_t fin;
         uint8_t opcode;
         uint8_t mask;
         struct law_ws_masking_key masking_key;
@@ -35,8 +43,8 @@ struct law_ws_frame_head {
 };
 
 /**
- * Generate the accept key by appending the magic string, performing an SHA1,
- * and then base64 decoding.
+ * Generate the accept string by appending the magic string, performing an 
+ * SHA1 hash, and then base64 decoding.
  */
 const char *law_ws_gen_accept(
         struct law_ws_accept_buf *buffer,
@@ -51,52 +59,57 @@ sel_err_t law_ws_accept(
         struct law_ht_req_head *head);
 
 /**
- * Read the start of the frame head.  The payload_length will determine
- * what happens next.
+ * Read the start of the frame head.  The payload_length will determine what 
+ * happens next.
  * <= 125 -> small frame head
  * == 126 -> medium frame head
  * == 127 -> large frame head
  */
-sel_err_t law_ws_read_frame_head_start(
+sel_err_t law_ws_read_head_start(
         struct law_ht_sreq *request,
-        struct law_ws_frame_head *head);
-
-sel_err_t law_ws_read_frame_head_start_v(
-        struct law_ht_sreq *request,
-        void *head);
+        struct law_ws_head *head);
 
 /**
- * Finish reading a small sized frame head.
+ * Finish reading a small frame head.
  */
-sel_err_t law_ws_read_frame_head_small(
+sel_err_t law_ws_read_head_small(
         struct law_ht_sreq *request,
-        struct law_ws_frame_head *head);
-
-sel_err_t law_ws_read_frame_head_small_v(
-        struct law_ht_sreq *request,
-        void *head);
+        struct law_ws_head *head);
 
 /**
  * Finish reading a medium sized frame head.
  */
-sel_err_t law_ws_read_frame_head_medium(
+sel_err_t law_ws_read_head_medium(
         struct law_ht_sreq *request,
-        struct law_ws_frame_head *head);
-
-sel_err_t law_ws_read_frame_head_medium_v(
-        struct law_ht_sreq *request,
-        void *head);
+        struct law_ws_head *head);
 
 /**
- * Finish reading large sized frame head.
+ * Finish reading large frame head.
  */
-sel_err_t law_ws_read_frame_head_large(
+sel_err_t law_ws_read_head_large(
         struct law_ht_sreq *request,
-        struct law_ws_frame_head *head);
+        struct law_ws_head *head);
 
-sel_err_t law_ws_read_frame_head_large_v(
-        struct law_ht_sreq *request,
-        void *head);
+/**
+ * Initialize an XOR cipher.
+ */
+struct law_ws_xor *law_ws_xor_init(
+        struct law_ws_xor *cipher,
+        struct law_ws_masking_key *key);
 
+/**
+ * Apply XOR encrytion to the buffer.
+ */
+sel_err_t law_ws_xor_apply(
+        struct law_ws_xor *cipher,
+        void *buffer,
+        const size_t length);
+
+/**
+ * Write a WebSocket head to the output buffer.
+ */
+sel_err_t law_ws_write_head(
+        struct law_ht_sreq *request, 
+        struct law_ws_head *head);
 
 #endif

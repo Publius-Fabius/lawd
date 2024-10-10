@@ -73,7 +73,7 @@ struct law_uri *law_uri_from_ast(
 }
 
 sel_err_t law_uri_parse(
-        struct pgc_par *parser,
+        const struct pgc_par *parser,
         struct pgc_buf *buffer,
         struct pgc_stk *heap,
         struct law_uri *uri)
@@ -84,7 +84,7 @@ sel_err_t law_uri_parse(
         return LAW_ERR_OK;
 }
 
-struct pgc_par *law_uri_parsers_query_list(struct law_uri_parsers *pars);
+extern const struct pgc_par law_uri_par_query_list;
 
 sel_err_t law_uri_parse_query(
         char *text,
@@ -97,8 +97,8 @@ sel_err_t law_uri_parse_query(
 
         struct pgc_ast_lst *result;
 
-        enum pgc_err err = pgc_lang_parse(
-                law_uri_parsers_query_list(export_law_uri_parsers()),
+        sel_err_t err = pgc_lang_parse(
+                &law_uri_par_query_list,
                 &buf,
                 heap,
                 &result);
@@ -119,7 +119,7 @@ size_t law_uri_query_count(
         return pgc_ast_len(query->list);
 }
 
-const char *law_uri_query_lookup(
+const char *law_uri_query_get(
         struct law_uri_query *query, 
         char *name)
 {
@@ -146,8 +146,7 @@ struct law_uri_query_i *law_uri_query_elems(
         return iter;
 }
 
-void law_uri_query_i_free(
-        struct law_uri_query_i *query)
+void law_uri_query_i_free(struct law_uri_query_i *query)
 {
         free(query);
 }
@@ -173,7 +172,7 @@ struct law_uri_query_i *law_uri_query_i_next(
         return query;
 }
 
-struct pgc_par *law_uri_parsers_path_list(struct law_uri_parsers *pars);
+extern const struct pgc_par law_uri_par_path_list;
 
 sel_err_t law_uri_parse_path(
         char *text,
@@ -186,12 +185,11 @@ sel_err_t law_uri_parse_path(
 
         struct pgc_ast_lst *result;
 
-        enum pgc_err err = pgc_lang_parse(
-                law_uri_parsers_path_list(export_law_uri_parsers()),
+        sel_err_t err = pgc_lang_parse(
+                &law_uri_par_path_list,
                 &buf,
                 heap,
                 &result);
-        
         if(err != PGC_ERR_OK) {
                 return err;
         }
@@ -203,8 +201,7 @@ sel_err_t law_uri_parse_path(
         return SEL_ERR_OK;
 }
 
-size_t law_uri_path_count(
-        struct law_uri_path *path)
+size_t law_uri_path_count(struct law_uri_path *path)
 {
         return path->count;
 }
@@ -220,8 +217,7 @@ const char *law_uri_path_at(
 }
 
 
-struct law_uri_path_i *law_uri_path_segs(
-        struct law_uri_path *path)
+struct law_uri_path_i *law_uri_path_segs(struct law_uri_path *path)
 {
         struct law_uri_path_i *iter = 
                 malloc(sizeof(struct law_uri_path_i));
@@ -247,73 +243,73 @@ struct law_uri_path_i *law_uri_path_i_next(
         return iter;
 }
 
-enum pgc_err law_uri_cap_scheme(
+sel_err_t law_uri_cap_scheme(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_URI_SCHEME, pgc_lang_readstr);
 }
 
-enum pgc_err law_uri_cap_host(
+sel_err_t law_uri_cap_host(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_URI_HOST, pgc_lang_readstr);
 }
 
-enum pgc_err law_uri_cap_port(
+sel_err_t law_uri_cap_port(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_URI_PORT, pgc_lang_readstr);
 }
 
-enum pgc_err law_uri_cap_path(
+sel_err_t law_uri_cap_path(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_URI_PATH, pgc_lang_readstr);
 }
 
-enum pgc_err law_uri_cap_query(
+sel_err_t law_uri_cap_query(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_URI_QUERY, pgc_lang_readstr);
 }
 
-enum pgc_err law_uri_cap_token(
+sel_err_t law_uri_cap_token(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_URI_TOKEN, pgc_lang_readstr);
 }
 
-enum pgc_err law_uri_cap_elem(
+sel_err_t law_uri_cap_elem(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readexp(
                 buffer, state, arg, LAW_URI_ELEM, 0);
 }
 
-enum pgc_err law_uri_cap_seg(
+sel_err_t law_uri_cap_seg(
         struct pgc_buf *buffer,
         void *state,
-        struct pgc_par *arg)
+        const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
                 buffer, state, arg, LAW_URI_SEG, pgc_lang_readstr);
