@@ -48,7 +48,8 @@ sel_err_t echo_handler(
 
         char str[16];
         const size_t length = pgc_buf_end(&buf);
-
+        sprintf(str, "%zu", length);
+        
         SEL_TRY(law_ht_sreq_set_status(
                 req, 
                 "HTTP/1.1", 
