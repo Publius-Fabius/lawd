@@ -58,19 +58,20 @@ sel_err_t law_wd_ensure(struct law_ht_sreq *req, const size_t nbytes)
 
 sel_err_t law_wd_flush(struct law_ht_sreq *req)
 {
-        struct pgc_buf *in = law_ht_sreq_in(req);
-        size_t offset = pgc_buf_tell(in);
-        const size_t end = pgc_buf_end(in);
+        struct pgc_buf *out = law_ht_sreq_out(req);
+        size_t offset = pgc_buf_tell(out);
+        const size_t end = pgc_buf_end(out);
         SEL_ASSERT(offset <= end);
         if(end - offset == 0) {
                 return LAW_ERR_OK;
         }
         SEL_TRY_QUIETLY(law_ht_sreq_write_data(req));
-        offset = pgc_buf_tell(in);
+        offset = pgc_buf_tell(out);
         if(end - offset == 0) {
                 return LAW_ERR_OK;
+        } else {
+                return LAW_ERR_WNTW;
         }
-        return LAW_ERR_OK;
 }
 
 sel_err_t law_wd_log_error(
