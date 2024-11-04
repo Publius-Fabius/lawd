@@ -126,11 +126,8 @@ bin/ping: tests/lawd/ping.c \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/safemem.o \
 	build/lawd/pqueue.o \
-	build/lawd/cqueue.o \
 	build/lawd/time.o \
 	build/lawd/log.o \
-	build/lawd/uri.o \
-	build/lawd/uri_parsers.o \
 	lib/libpgenc.a \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^ -lssl

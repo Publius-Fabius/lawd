@@ -76,6 +76,18 @@ sel_err_t law_wd_log_error(
         const char *action,
         sel_err_t error);
 
+/**
+ * CLF := ip-address - - [datetime] "request-line" status-code bytes-sent
+ */
+sel_err_t law_wd_log_access(
+        struct law_worker *worker,
+        struct law_ht_sreq *request,
+        const char *method,
+        struct law_uri *target,
+        const char *version,
+        const int status_code,
+        const size_t content_length);
+
 /** IO callback */
 typedef sel_err_t (*law_wd_io_arg_t)(struct law_ht_sreq*, void*);
 

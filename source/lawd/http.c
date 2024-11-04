@@ -273,7 +273,7 @@ static sel_err_t law_ht_read_data(struct law_ht_conn *conn)
                 case LAW_HT_SSL: 
                         return law_ht_read_SSL(in, conn->ssl, avail);
                 default: 
-                        return SEL_ABORT();
+                        return SEL_HALT();
         }
 }
 
@@ -464,7 +464,7 @@ static sel_err_t law_ht_write_data(struct law_ht_conn *conn)
                 case LAW_HT_UNSECURED:
                         return law_ht_write_sys(out, conn->socket, block);
                 default:
-                        return SEL_ABORT();
+                        return SEL_HALT();
         }
 }
 

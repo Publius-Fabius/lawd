@@ -2,30 +2,31 @@
 #define LAWD_LOG_H
 
 #include "lawd/error.h"
-#include "lawd/uri.h"
+#include <netinet/in.h>
+
+/** IP Address String */
+struct law_log_ip_buf {
+        char bytes[INET6_ADDRSTRLEN];
+};
 
 /**
- * CLF := ip-address - - [datetime] "request-line" status-code bytes-sent
+ * Get a string representation of the socket's IP address.  Returns NULL on 
+ * error.
  */
-sel_err_t law_log_access(
-        FILE *access,
-        const int socket,
-        const char *method,
-        struct law_uri *target,
-        const char *version,
-        const int status_code,
-        const size_t content_length);
+char *law_log_ntop(
+        const int socket, 
+        struct law_log_ip_buf *ip_addr);
 
 /**
- * [datetime] pid tid package action "message"
+ * [datetime] pid action "message"
  */
-sel_err_t law_log_error(
+void law_log_error(
         FILE *stream,
         const char *action,
         const char *message);
 
 /**
- * ip-address [datetime] pid tid action "message"
+ * [datetime] [ip-address] pid action "message"
  */
 sel_err_t law_log_error_ip(
         FILE *stream,

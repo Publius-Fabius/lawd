@@ -10,19 +10,26 @@
 
 /** Network Protocol */
 enum law_srv_prot {
-        LAW_SRV_UDP     = 1,                    /** UDP over IPv4 */
-        LAW_SRV_UDP6    = 2,                    /** UDP over IPv6 */
-        LAW_SRV_TCP     = 3,                    /** TCP over IPv4 */
-        LAW_SRV_TCP6    = 4,                    /** TCP over IPv6 */
-        LAW_SRV_NONE    = 5                     /** No Protocol */
+        LAW_SRV_UDP             = 1,            /** UDP over IPv4 */
+        LAW_SRV_UDP6            = 2,            /** UDP over IPv6 */
+        LAW_SRV_TCP             = 3,            /** TCP over IPv4 */
+        LAW_SRV_TCP6            = 4,            /** TCP over IPv6 */
+        LAW_SRV_NONE            = 5             /** No Protocol */
 };
 
-/** Event Flags */
-enum law_srv_flag {
-        LAW_SRV_PIN     = EPOLLIN,              /** Poll for Input */                       
-        LAW_SRV_POUT    = EPOLLOUT,             /** Poll for Output */
-        LAW_SRV_PHUP    = EPOLLHUP,             /** Poll for a Hangup */
-        LAW_SRV_PERR    = EPOLLERR              /** Poll for an Error */
+/** Event Options */
+enum law_srv_evopt {
+        LAW_SRV_POLLIN          = EPOLLIN,      /** Poll for Input */                       
+        LAW_SRV_POLLOUT         = EPOLLOUT,     /** Poll for Output */
+        LAW_SRV_POLLHUP         = EPOLLHUP,     /** Poll for a Hangup */
+        LAW_SRV_POLLERR         = EPOLLERR      /** Poll for an Error */
+};
+
+/** Server Signal */
+enum law_srv_sig {
+        LAW_SRV_SIGIO           = 1,            /** IO Signal */
+        LAW_SRV_SIGINT          = 2,            /** Notification Signal */
+        LAW_SRV_SIGTTL          = 3             /** Timeout Signal */
 };
 
 /** Network Server */
@@ -36,10 +43,9 @@ struct law_task;
 
 /** IO Event */
 struct law_event {
-        int fd;                         /** The event's file descriptor. */
         unsigned int events;            /** Events to scan for. */
         unsigned int revents;           /** Returned events. */
-        void *record;                   /** Polling Record */
+        struct law_task *task;          /** The task the event belongs to. */
 };
 
 /** General Callback */
@@ -59,7 +65,8 @@ struct law_srv_cfg {
         uint16_t port;                          /** Socket Port */
         int backlog;                            /** Accept Backlog */
         int maxconns;                           /** Max Connections */
-        int timeout;                            /** Polling timeout */
+        int worker_timeout;                     /** Worker Polling timeout */
+        int server_timeout;                     /** Server Polling Timeout */
         size_t stack_length;                    /** Coroutine Stack */
         size_t stack_guard;                     /** Stack Guards */
         uid_t uid;                              /** System User */
@@ -132,38 +139,35 @@ struct law_server *law_srv_server(struct law_worker *worker);
 struct law_task *law_srv_active(struct law_worker *worker);
 
 /** 
- * Watch the file descriptor.
+ * Add a file descriptor to the polling set.
  */
-sel_err_t law_srv_watch(struct law_worker *worker, const int fd);
-
-/** 
- * Unwatch the file descriptor.
- */
-sel_err_t law_srv_unwatch(struct law_worker *worker, const int fd);
+sel_err_t law_srv_add(
+        struct law_worker *worker, 
+        const int fd,
+        struct law_event *event);
 
 /**
- * Request event notification.
+ * Modify the events the file descriptor listens for.
  */
-sel_err_t law_srv_poll(
-        struct law_worker *worker,
-        int64_t timeout,
-        const int event_count, 
-        struct law_event *events);
+sel_err_t law_srv_mod(
+        struct law_worker *worker, 
+        const int fd,
+        struct law_event *event);
 
 /**
- * Wake the task (eventually).  This function should be thread-safe.
+ * Remove a file descriptor from the polling set.
  */
-sel_err_t law_srv_wake(
-        struct law_worker *worker,
-        struct law_task *task);
+sel_err_t law_srv_del(struct law_worker *worker, const int fd);
 
 /**
- * Yield the coroutine and wait for IO events to occur or a certain ammount 
- * of time to elapse.
- * LAW_ERR_TTL - The function timed out without an event.
- * LAW_ERR_OK - At least one event was encountered.
+ * Wait for timeout microseconds unless a signal is received.
  */
-sel_err_t law_srv_wait(struct law_worker *worker, int64_t timeout);
+sel_err_t law_srv_wait(struct law_worker *worker, const int64_t timeout);
+
+/**
+ * Add the task to the notification queue.
+ */
+sel_err_t law_srv_notify(struct law_task *task);
 
 /**
  * Spawn a new coroutine.

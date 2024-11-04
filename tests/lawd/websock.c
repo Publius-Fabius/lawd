@@ -8,13 +8,6 @@
 #include <openssl/types.h>
 #include <openssl/evp.h>
 
-sel_err_t ws_ensure_input(
-        struct law_worker *worker, 
-        struct law_ht_sreq *req, 
-        const size_t nbytes)
-{
-
-}
 
 sel_err_t ws_handler(
         struct law_webd *webd,

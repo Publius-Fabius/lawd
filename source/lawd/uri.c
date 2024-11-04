@@ -23,18 +23,14 @@ struct law_uri_path_i {
 
 sel_err_t law_uri_fprint(FILE *file, struct law_uri *uri)
 {
-        if(uri->scheme) {
-                fprintf(file, "%s://", uri->scheme);
-        }
-        if(uri->host) {
-                fprintf(file, "%s", uri->host);
-        }
-        if(uri->path) {
-                fprintf(file, "%s", uri->path);
-        }
-        if(uri->query) {
-                fprintf(file, "?%s", uri->query);
-        }
+        if(uri->scheme) 
+                SEL_IO_QUIETLY(fprintf(file, "%s://", uri->scheme));
+        if(uri->host) 
+                SEL_IO_QUIETLY(fprintf(file, "%s", uri->host));
+        if(uri->path) 
+                SEL_IO_QUIETLY(fprintf(file, "%s", uri->path));
+        if(uri->query) 
+                SEL_IO_QUIETLY(fprintf(file, "?%s", uri->query));
         return LAW_ERR_OK;
 }
 
@@ -81,7 +77,7 @@ struct law_uri *law_uri_from_ast(
                         case LAW_URI_QUERY:
                                 uri->query = pgc_ast_tostr(i->val);
                                 break;
-                        default: SEL_ABORT();
+                        default: SEL_HALT();
                 }
         }
         return uri;

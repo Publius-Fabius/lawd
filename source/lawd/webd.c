@@ -100,6 +100,42 @@ sel_err_t law_wd_log_error(
         }
 }
 
+/**
+ * CLF := ip-address - - [datetime] "request-line" status-code bytes-sent
+ */
+sel_err_t law_log_access(
+        FILE *access,
+        const int socket,
+        const char *method,
+        struct law_uri *target,
+        const char *version,
+        const int status,
+        const size_t content)
+{
+        char ip_addr[INET6_ADDRSTRLEN];
+        SEL_TRY_QUIETLY(law_log_ntop(
+                stderr, 
+                socket, 
+                ip_addr, 
+                INET6_ADDRSTRLEN));
+        struct law_time_dtb buf;
+        char *datetime = law_time_datetime(&buf);
+        (void)flockfile(access);
+        SEL_TEST(fprintf(access, 
+                "%s - - [%s] \"%s ", 
+                ip_addr,
+                datetime,
+                method) > 0)
+        SEL_TEST(law_uri_fprint(access, target) == LAW_ERR_OK); 
+        SEL_TEST(fprintf(access, 
+                " %s\" %i %zu\r\n", 
+                version, 
+                status, 
+                content) > 0);
+        (void)funlockfile(access);
+        return LAW_ERR_OK;
+}
+
 sel_err_t law_wd_run_io_arg(
         struct law_worker *wrkr,
         struct law_ht_sreq *req,
@@ -117,10 +153,10 @@ sel_err_t law_wd_run_io_arg(
                         case LAW_ERR_OK: 
                                 return LAW_ERR_OK;
                         case LAW_ERR_WNTW: 
-                                ev.events = LAW_SRV_POUT;
+                                ev.events = LAW_SRV_POLLOUT;
                                 break;
                         case LAW_ERR_WNTR: 
-                                ev.events = LAW_SRV_PIN;
+                                ev.events = LAW_SRV_POLLIN;
                                 break;
                         default: 
                                 return err;
@@ -131,7 +167,7 @@ sel_err_t law_wd_run_io_arg(
                 }
                 SEL_TRY_QUIETLY(law_srv_poll(wrkr, wakeup - now, 1, &ev));
         }
-        return SEL_ABORT();
+        return SEL_HALT();
 }
 
 struct law_wd_io_clos {

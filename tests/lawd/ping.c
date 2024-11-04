@@ -22,8 +22,8 @@ sel_err_t ticker(struct law_worker *w, struct law_data data)
 sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
 {
         SEL_INFO();
-
-        char out[4096];
+        char in[1024];
+        char out[1024];
         const ssize_t olen = sprintf(
                 out, 
                 "HTTP/1.1 200 OK\r\n"
@@ -31,25 +31,29 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
                 "Content-Length: 4\r\n\r\n");
 
         struct law_event ev;
-        ev.events = LAW_SRV_PIN;
-        ev.fd = sock;
-        if(law_srv_watch(w, sock) != LAW_ERR_OK) {
-                perror("law_srv_watch");
-                SEL_ABORT();
-        }
-        law_srv_poll(w, 1000, 1, &ev);
-        law_srv_unwatch(w, sock);
+        ev.events = LAW_SRV_POLLIN;
+        if(law_srv_add(w, sock, &ev) != LAW_ERR_OK)
+                SEL_HALT();
+        
+        puts("waiting once");
+        if(law_srv_wait(w, 1000) != LAW_SRV_SIGIO)
+                SEL_HALT();
+        
+        read(sock, in, 1024);
 
-        SEL_TEST(ev.revents & LAW_SRV_PIN);
+        puts("waiting again");
+        law_srv_wait(w, 1000);
+
+        puts("waiting more");
+        if(law_srv_del(w, sock) != LAW_ERR_OK)
+                SEL_HALT();
+
+        SEL_TEST(ev.revents & LAW_SRV_POLLIN);
 
         write(sock, out, (size_t)olen);
         write(sock, "pong", 4);
         close(sock);
 
-        if((*(int*)(data.u.ptr))++ >= 5) {
-                law_srv_stop(law_srv_server(w));
-        }
-        
         return LAW_ERR_OK; 
 }
 
