@@ -878,79 +878,88 @@ static sel_err_t law_ht_read_uint32(
 }
 
 sel_err_t law_ht_cap_status(
-        struct pgc_buf *buffer,
+        struct pgc_stk *stk,
+        struct pgc_buf *buf,
         void *state,
         const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
-                buffer, state, arg, LAW_HT_METHOD, law_ht_read_uint32);
+                stk, buf, state, arg, LAW_HT_METHOD, law_ht_read_uint32);
 }
 
 sel_err_t law_ht_cap_method(
-        struct pgc_buf *buffer,
+        struct pgc_stk *stk,
+        struct pgc_buf *buf,
         void *state,
         const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
-                buffer, state, arg, LAW_HT_METHOD, pgc_lang_readstr);
+                stk, buf, state, arg, LAW_HT_METHOD, pgc_lang_readstr);
 }
 
 sel_err_t law_ht_cap_version(
-        struct pgc_buf *buffer,
+        struct pgc_stk *stk,
+        struct pgc_buf *buf,
         void *state,
         const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
-                buffer, state, arg, LAW_HT_VERSION, pgc_lang_readstr);
+                stk, buf, state, arg, LAW_HT_VERSION, pgc_lang_readstr);
 }
 
 sel_err_t law_ht_cap_field_name(
-        struct pgc_buf *buffer,
+        struct pgc_stk *stk,
+        struct pgc_buf *buf,
         void *state,
         const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
-                buffer, state, arg, LAW_HT_FIELD_NAME, pgc_lang_readstr);
+                stk, buf, state, arg, LAW_HT_FIELD_NAME, pgc_lang_readstr);
 }
 
 sel_err_t law_ht_cap_field_value(
-        struct pgc_buf *buffer,
+        struct pgc_stk *stk,
+        struct pgc_buf *buf,
         void *state,
         const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
-                buffer, state, arg, LAW_HT_FIELD_VALUE, pgc_lang_readstr);
+                stk, buf, state, arg, LAW_HT_FIELD_VALUE, pgc_lang_readstr);
 }
 
 sel_err_t law_ht_cap_field(
-        struct pgc_buf *buffer,
+        struct pgc_stk *stk,
+        struct pgc_buf *buf,
         void *state,
         const struct pgc_par *arg)
 {
-        return pgc_lang_readexp(buffer, state, arg, LAW_HT_FIELD, 0);
+        return pgc_lang_readexp(stk, buf, state, arg, LAW_HT_FIELD, 0);
 }
 
 sel_err_t law_ht_cap_origin_form(
+        struct pgc_stk *stk,
         struct pgc_buf *buf,
         void *st,
         const struct pgc_par *arg)
 {
-        return pgc_lang_readexp(buf, st, arg, LAW_HT_ORIGIN_FORM, 0);
+        return pgc_lang_readexp(stk, buf, st, arg, LAW_HT_ORIGIN_FORM, 0);
 }
 
 sel_err_t law_ht_cap_absolute_form(
+        struct pgc_stk *stk,
         struct pgc_buf *buf,
         void *st,
         const struct pgc_par *arg)
 {
-        return pgc_lang_readexp(buf, st, arg, LAW_HT_ABSOLUTE_FORM, 0);
+        return pgc_lang_readexp(stk, buf, st, arg, LAW_HT_ABSOLUTE_FORM, 0);
 }
 
 sel_err_t law_ht_cap_authority_form(
+        struct pgc_stk *stk,
         struct pgc_buf *buf,
         void *st,
         const struct pgc_par *arg)
 {
-        return pgc_lang_readexp(buf, st, arg, LAW_HT_AUTHORITY_FORM, 0);
+        return pgc_lang_readexp(stk, buf, st, arg, LAW_HT_AUTHORITY_FORM, 0);
 }
 

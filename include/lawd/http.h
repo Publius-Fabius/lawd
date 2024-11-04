@@ -434,46 +434,55 @@ enum law_ht_tag {
 };
 
 sel_err_t law_ht_cap_status(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_method(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_version(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_field_name(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_field_value(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_field(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_origin_form(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_absolute_form(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 sel_err_t law_ht_cap_authority_form(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);

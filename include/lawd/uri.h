@@ -250,36 +250,42 @@ sel_err_t law_uri_parse_path(
 
 /** Capture scheme component. */
 sel_err_t law_uri_cap_scheme(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 /** Capture host component. */
 sel_err_t law_uri_cap_host(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 /** Capture port component. */
 sel_err_t law_uri_cap_port(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 /** Capture path component. */
 sel_err_t law_uri_cap_path(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 /** Capture query token. */
 sel_err_t law_uri_cap_token(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);
 
 /** Capture query element. */
 sel_err_t law_uri_cap_elem(
+        struct pgc_stk *stack,
         struct pgc_buf *buffer,
         void *state,
         const struct pgc_par *arg);

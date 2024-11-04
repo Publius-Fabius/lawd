@@ -41,10 +41,10 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
         
         read(sock, in, 1024);
 
-        puts("waiting again");
+        puts("waiting twice");
         law_srv_wait(w, 1000);
 
-        puts("waiting more");
+        puts("waiting thrice");
         if(law_srv_del(w, sock) != LAW_ERR_OK)
                 SEL_HALT();
 
