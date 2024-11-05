@@ -20,7 +20,7 @@ char *law_log_ntop(
 /**
  * [datetime] pid action "message"
  */
-void law_log_error(
+sel_err_t law_log_error(
         FILE *stream,
         const char *action,
         const char *message);

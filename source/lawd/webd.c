@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 
 #include "lawd/webd.h"
 #include "lawd/log.h"
@@ -5,6 +6,7 @@
 
 #include <errno.h>
 #include <openssl/err.h>
+#include <stdio.h>
 
 struct law_webd {
         struct law_wd_cfg cfg;
@@ -75,27 +77,24 @@ sel_err_t law_wd_flush(struct law_ht_sreq *req)
 }
 
 sel_err_t law_wd_log_error(
-        struct law_worker *worker,
-        struct law_ht_sreq *request,
+        FILE *stream,
+        const int socket,
         const char *action,
         sel_err_t error)
 {
-        struct law_server *server = law_srv_server(worker);
-        FILE *errs = law_srv_errors(server);
-        const int socket = law_ht_sreq_socket(request);
         const char *str = NULL;
         switch(error) {
                 case LAW_ERR_SYS:
                         str = strerror(errno);
-                        law_log_error_ip(errs, socket, action, str);
+                        law_log_error_ip(stream, socket, action, str);
                         return error;
                 case LAW_ERR_SSL:
                         str = ERR_reason_error_string(ERR_get_error());
-                        law_log_error_ip(errs, socket, action, str);
+                        law_log_error_ip(stream, socket, action, str);
                         return error;
                 default:
                         str = sel_strerror(error);
-                        law_log_error_ip(errs, socket, action, str);
+                        law_log_error_ip(stream, socket, action, str);
                         return error;
         }
 }
@@ -103,7 +102,7 @@ sel_err_t law_wd_log_error(
 /**
  * CLF := ip-address - - [datetime] "request-line" status-code bytes-sent
  */
-sel_err_t law_log_access(
+sel_err_t law_wd_log_access(
         FILE *access,
         const int socket,
         const char *method,
@@ -112,18 +111,15 @@ sel_err_t law_log_access(
         const int status,
         const size_t content)
 {
-        char ip_addr[INET6_ADDRSTRLEN];
-        SEL_TRY_QUIETLY(law_log_ntop(
-                stderr, 
-                socket, 
-                ip_addr, 
-                INET6_ADDRSTRLEN));
+        struct law_log_ip_buf ipbuf;
+        char *ipaddr = law_log_ntop(socket, &ipbuf);
+        if(!ipaddr) ipaddr = "NTOP_ERROR";
         struct law_time_dtb buf;
         char *datetime = law_time_datetime(&buf);
         (void)flockfile(access);
         SEL_TEST(fprintf(access, 
                 "%s - - [%s] \"%s ", 
-                ip_addr,
+                ipaddr,
                 datetime,
                 method) > 0)
         SEL_TEST(law_uri_fprint(access, target) == LAW_ERR_OK); 
@@ -136,8 +132,8 @@ sel_err_t law_log_access(
         return LAW_ERR_OK;
 }
 
-sel_err_t law_wd_run_io_arg(
-        struct law_worker *wrkr,
+sel_err_t law_wd_run_io1(
+        struct law_worker *wrk,
         struct law_ht_sreq *req,
         int64_t timeout,
         sel_err_t (*io)(struct law_ht_sreq*, void*),
@@ -146,28 +142,31 @@ sel_err_t law_wd_run_io_arg(
         const int sock = law_ht_sreq_socket(req);
         int64_t now = law_time_millis();
         const int64_t wakeup = timeout + now;
-        struct law_event ev = { .fd = sock, .events = 0 };
-        for(;;) {
-                const sel_err_t err = io(req, arg);
+        struct law_event ev; memset(&ev, 0, sizeof(struct law_event));
+        for(int I = 0; I < 512; ++I) {
+                sel_err_t err = io(req, arg);
+                int event;
                 switch(err) {
                         case LAW_ERR_OK: 
                                 return LAW_ERR_OK;
                         case LAW_ERR_WNTW: 
-                                ev.events = LAW_SRV_POLLOUT;
+                                event = LAW_SRV_POLLOUT;
                                 break;
                         case LAW_ERR_WNTR: 
-                                ev.events = LAW_SRV_POLLIN;
+                                event = LAW_SRV_POLLIN;
                                 break;
                         default: 
                                 return err;
                 }
                 now = law_time_millis();
-                if(wakeup <= now) {
+                if(wakeup <= now) 
                         return LAW_ERR_TTL;
-                }
-                SEL_TRY_QUIETLY(law_srv_poll(wrkr, wakeup - now, 1, &ev));
+                else if(event != ev.events)
+                        SEL_TRY_QUIETLY(law_srv_mod(wrk, sock, &ev));
+                if((err = law_srv_wait(wrk, wakeup - now)) < 0)
+                        return err;                
         }
-        return SEL_HALT();
+        return LAW_ERR_TTL;
 }
 
 struct law_wd_io_clos {
@@ -180,7 +179,7 @@ static sel_err_t law_wd_io_dis(struct law_ht_sreq *req, void *st)
         return closure->callback(req);
 }
 
-sel_err_t law_wd_run_io(
+sel_err_t law_wd_run_io0(
         struct law_worker *wrkr,
         struct law_ht_sreq *req,
         int64_t timeout,
@@ -188,7 +187,7 @@ sel_err_t law_wd_run_io(
 {
         struct law_wd_io_clos clos;
         clos.callback = io;
-        return law_wd_run_io_arg(wrkr, req, timeout, law_wd_io_dis, &clos);
+        return law_wd_run_io1(wrkr, req, timeout, law_wd_io_dis, &clos);
 }
 
 static sel_err_t law_wd_read_head(struct law_ht_sreq *req, void *ptr)
@@ -202,21 +201,21 @@ static sel_err_t law_wd_service_conn(
         struct law_ht_sreq *req,
         struct law_data data)
 {
-        const int socket = law_ht_sreq_socket(req);
+        const int sock = law_ht_sreq_socket(req);
         FILE *errs = law_srv_errors(law_srv_server(worker));
         law_wd_onerror_t onerror = webd->cfg.onerror;
         const size_t begin_content = pgc_buf_tell(law_ht_sreq_out(req));
         struct law_ht_req_head head;
         sel_err_t err;
         int status;
-        err = law_wd_run_io_arg(
+        err = law_wd_run_io1(
                 worker, 
                 req, 
                 webd->cfg.read_head_timeout,
                 law_wd_read_head,
                 &head);
         if(err != LAW_ERR_OK) {
-                law_wd_log_error(worker, req, "law_wd_read_head", err);
+                law_wd_log_error(errs, sock, "law_wd_read_head", err);
                 SEL_FREPORT(errs, LAW_ERR_TTL);
         }
 
@@ -242,9 +241,9 @@ static sel_err_t law_wd_service_conn(
                         err = onerror(webd, worker, req, status, data);
                 }
         }
-        law_log_access(
+        law_wd_log_access(
                 webd->cfg.access, 
-                socket, 
+                sock, 
                 head.method, 
                 &head.target, 
                 head.version, 
@@ -260,6 +259,7 @@ static void law_wd_accept_ssl(
         struct law_data data)
 {
         FILE *errs = law_srv_errors(law_srv_server(worker));
+        const int socket = law_ht_sreq_socket(req);
         sel_err_t err;
         if(law_ht_sreq_security(req) != LAW_HT_SSL) {
                 law_wd_service_conn(webd, worker, req, data);
@@ -267,20 +267,23 @@ static void law_wd_accept_ssl(
         }
         err = law_ht_sreq_ssl_accept(req);
         if(err == LAW_ERR_SYS || err == LAW_ERR_SSL) {
-                law_wd_log_error(worker, req, "law_ht_sreq_ssl_accept", err);
+                law_wd_log_error(errs, socket, "law_ht_sreq_ssl_accept", err);
                 SEL_FREPORT(errs, err);
                 return;
         }
         err = law_wd_service_conn(webd, worker, req, data);
         if(err != LAW_ERR_SYS && err != LAW_ERR_SSL) {
-                if(law_wd_run_io(
+                if(law_wd_run_io0(
                         worker,
                         req,
                         webd->cfg.ssl_shutdown_timeout,
                         law_ht_sreq_ssl_shutdown) != LAW_ERR_OK)
                 {
                         law_wd_log_error(
-                                worker, req, "law_ht_sreq_ssl_shutdown", err);
+                                errs, 
+                                socket, 
+                                "law_ht_sreq_ssl_shutdown", 
+                                err);
                         SEL_FREPORT(errs, err);
                 }
         } 
@@ -295,13 +298,14 @@ static void law_wd_accept_sys(
 {
         const int socket = law_ht_sreq_socket(req);
         FILE *errs = law_srv_errors(law_srv_server(worker));
-        sel_err_t err = law_srv_watch(worker, socket);
+        struct law_event ev; memset(&ev, 0, sizeof(struct law_event));
+        sel_err_t err = law_srv_add(worker, socket, &ev);
         if(err != LAW_ERR_OK) {
-                law_wd_log_error(worker, req, "law_srv_watch", err);
+                law_wd_log_error(errs, socket, "law_srv_add", err);
                 SEL_FREPORT(errs, err);
         } else {
                 law_wd_accept_ssl(webd, worker, req, data);
-                law_srv_unwatch(worker, socket);
+                law_srv_del(worker, socket);
         }
         law_ht_sreq_close(req);
 }
