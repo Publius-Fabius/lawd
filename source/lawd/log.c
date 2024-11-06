@@ -39,7 +39,7 @@ sel_err_t law_log_error(
         const char *action,
         const char *message)
 {
-        struct law_time_dtb buf;
+        struct law_time_dt_buf buf;
         char *datetime = law_time_datetime(&buf);
         pid_t pid = getpid();
         SEL_TEST(fprintf(errors, 
@@ -48,6 +48,7 @@ sel_err_t law_log_error(
                 pid,
                 action,
                 message) > 0);
+        return LAW_ERR_OK;
 }
 
 sel_err_t law_log_error_ip(
@@ -59,7 +60,7 @@ sel_err_t law_log_error_ip(
         struct law_log_ip_buf ipbuf;
         char *ipaddr = law_log_ntop(socket, &ipbuf);
         if(!ipaddr) ipaddr = "NTOP_ERROR";
-        struct law_time_dtb buf;
+        struct law_time_dt_buf buf;
         char *datetime = law_time_datetime(&buf);
         const pid_t pid = getpid();
         SEL_TEST(fprintf(errors, 

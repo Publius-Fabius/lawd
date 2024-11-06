@@ -114,7 +114,7 @@ sel_err_t law_wd_log_access(
         struct law_log_ip_buf ipbuf;
         char *ipaddr = law_log_ntop(socket, &ipbuf);
         if(!ipaddr) ipaddr = "NTOP_ERROR";
-        struct law_time_dtb buf;
+        struct law_time_dt_buf buf;
         char *datetime = law_time_datetime(&buf);
         (void)flockfile(access);
         SEL_TEST(fprintf(access, 

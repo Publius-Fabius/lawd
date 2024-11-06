@@ -21,6 +21,9 @@ struct law_ht_sreq;
 /** HTTP Client-Side Request */
 struct law_ht_creq;
 
+/** Defined as sizeof(struct law_ht_hdrs_i) */
+extern const size_t sizeof_law_ht_hdrs_i;
+
 /** HTTP Request Head */
 struct law_ht_req_head {
         const char *method;                     /** Request Method */
@@ -85,7 +88,9 @@ const char *law_ht_hdrs_get(
 /**
  * Get an iterator for the header collection.
  */
-struct law_ht_hdrs_i *law_ht_hdrs_elems(struct law_ht_hdrs *headers);
+struct law_ht_hdrs_i *law_ht_hdrs_elems(
+        struct law_ht_hdrs *headers,
+        void *address);
 
 /**
  * Get the next header field <name, value> pair.  A NULL return value indicates
@@ -96,11 +101,6 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
         struct law_ht_hdrs_i *iterator,
         const char **field_name,
         const char **field_value);
-
-/**
- * Discard an unfinished iteration.
- */
-void law_ht_hdrs_i_free(struct law_ht_hdrs_i *iterator);
 
 /** 
  * Get the request's system socket.

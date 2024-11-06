@@ -21,7 +21,7 @@ sel_err_t echo_onerror(
         struct law_data data)
 {
         SEL_INFO();
-        return LAW_ERR_OK;      
+        return LAW_ERR_OK;
 }
 
 sel_err_t echo_handler(
@@ -31,9 +31,12 @@ sel_err_t echo_handler(
         struct law_ht_req_head *head,
         struct law_data data)
 { 
-        uint8_t raw_buf[0x2000];
+        struct pgc_stk *heap = law_ht_sreq_heap(req);
+
         struct pgc_buf buf;
-        pgc_buf_init(&buf, raw_buf, 0x2000, 0);
+        char *raw_buf = pgc_stk_push(heap, 1024);
+        if(!raw_buf) return 500;
+        pgc_buf_init(&buf, raw_buf, 1024, 0);
 
         SEL_TRY(pgc_buf_printf(&buf, "%s ", head->method));
         SEL_TRY(law_uri_bprint(&buf, &head->target));
@@ -41,14 +44,17 @@ sel_err_t echo_handler(
 
         const char *name, *value;
 
-        struct law_ht_hdrs_i *i = law_ht_hdrs_elems(head->headers);
+        struct law_ht_hdrs_i *i = law_ht_hdrs_elems(
+                head->headers,
+                pgc_stk_push(heap, sizeof_law_ht_hdrs_i));
         while(law_ht_hdrs_i_next(i, &name, &value)) {
                 SEL_TRY(pgc_buf_printf(&buf, "%s:%s\r\n", name, value));
         }
 
-        char str[16];
         const size_t length = pgc_buf_end(&buf);
-        sprintf(str, "%zu", length);
+        char *str = pgc_stk_push(heap, 16);
+        if(!str) return 500;
+        SEL_IO(snprintf(str, 16, "%zu", length));
         
         SEL_TRY(law_ht_sreq_set_status(
                 req, 
@@ -61,7 +67,6 @@ sel_err_t echo_handler(
         SEL_TRY(law_ht_sreq_begin_body(req));
 
         SEL_TRY(pgc_buf_put(law_ht_sreq_out(req), raw_buf, length));
-
         SEL_TRY(law_wd_flush(req));
 
         return LAW_ERR_OK;

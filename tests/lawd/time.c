@@ -10,7 +10,7 @@ void test_millis()
 
 void test_datetime()
 {
-        struct law_time_dtb buf;
+        struct law_time_dt_buf buf;
         printf("%s\r\n", law_time_datetime(&buf));
 }
 

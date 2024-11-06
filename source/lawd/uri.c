@@ -21,33 +21,29 @@ struct law_uri_path_i {
         struct pgc_ast_lst *list;
 };
 
+const size_t sizeof_law_uri_query_i = sizeof(struct law_uri_query_i);
+
+const size_t sizeof_law_uri_path_i = sizeof(struct law_uri_path_i);
+
 sel_err_t law_uri_fprint(FILE *file, struct law_uri *uri)
 {
-        if(uri->scheme) 
-                SEL_IO_QUIETLY(fprintf(file, "%s://", uri->scheme));
-        if(uri->host) 
-                SEL_IO_QUIETLY(fprintf(file, "%s", uri->host));
-        if(uri->path) 
-                SEL_IO_QUIETLY(fprintf(file, "%s", uri->path));
-        if(uri->query) 
-                SEL_IO_QUIETLY(fprintf(file, "?%s", uri->query));
+        if(uri->scheme) SEL_IO_QUIETLY(fprintf(file, "%s://", uri->scheme));
+        if(uri->host) SEL_IO_QUIETLY(fprintf(file, "%s", uri->host));
+        if(uri->path) SEL_IO_QUIETLY(fprintf(file, "%s", uri->path));
+        if(uri->query) SEL_IO_QUIETLY(fprintf(file, "?%s", uri->query));
         return LAW_ERR_OK;
 }
 
 sel_err_t law_uri_bprint(struct pgc_buf *buf, struct law_uri *uri)
 {
-        if(uri->scheme) {
+        if(uri->scheme) 
                 SEL_TRY_QUIETLY(pgc_buf_printf(buf, "%s://", uri->scheme));
-        }
-        if(uri->host) {
+        if(uri->host) 
                 SEL_TRY_QUIETLY(pgc_buf_printf(buf, "%s", uri->host));
-        }
-        if(uri->path) {
+        if(uri->path) 
                 SEL_TRY_QUIETLY(pgc_buf_printf(buf, "%s", uri->path));
-        }
-        if(uri->query) {
+        if(uri->query) 
                 SEL_TRY_QUIETLY(pgc_buf_printf(buf, "?%s", uri->query));
-        }
         return LAW_ERR_OK;
 }
 
@@ -132,7 +128,7 @@ size_t law_uri_query_count(
 
 const char *law_uri_query_get(
         struct law_uri_query *query, 
-        char *name)
+        const char *name)
 {
         static const char *EMPTY = "";
         for(struct pgc_ast_lst *l = query->list; l; l = l->nxt) {
@@ -149,17 +145,13 @@ const char *law_uri_query_get(
 }
 
 struct law_uri_query_i *law_uri_query_elems(
-        struct law_uri_query *query)
+        struct law_uri_query *query,
+        void *address)
 {
-        struct law_uri_query_i *iter = 
-                malloc(sizeof(struct law_uri_query_i));
+        SEL_ASSERT(query && address);
+        struct law_uri_query_i *iter = address;
         iter->list = query->list;
         return iter;
-}
-
-void law_uri_query_i_free(struct law_uri_query_i *query)
-{
-        free(query);
 }
 
 struct law_uri_query_i *law_uri_query_i_next(
@@ -167,9 +159,7 @@ struct law_uri_query_i *law_uri_query_i_next(
         const char **name,
         const char **value)
 {
-        static const char *EMPTY = "";
         if(!query->list) {
-                law_uri_query_i_free(query);
                 return NULL;
         }
         struct pgc_ast_lst *lst = pgc_ast_tolst(query->list->val);
@@ -177,7 +167,7 @@ struct law_uri_query_i *law_uri_query_i_next(
         if(lst->nxt) {
                 *value = pgc_ast_tostr(lst->nxt->val);
         } else {
-                *value = EMPTY;
+                *value = "";
         }
         query->list = query->list->nxt;
         return query;
@@ -228,17 +218,14 @@ const char *law_uri_path_at(
 }
 
 
-struct law_uri_path_i *law_uri_path_segs(struct law_uri_path *path)
+struct law_uri_path_i *law_uri_path_segs(
+        struct law_uri_path *path,
+        void *address)
 {
-        struct law_uri_path_i *iter = 
-                malloc(sizeof(struct law_uri_path_i));
+        SEL_ASSERT(path && address);
+        struct law_uri_path_i *iter = address;
         iter->list = path->list;
         return iter;
-}
-
-void law_uri_path_i_free(struct law_uri_path_i *iter)
-{
-        free(iter);
 }
 
 struct law_uri_path_i *law_uri_path_i_next(
@@ -246,7 +233,6 @@ struct law_uri_path_i *law_uri_path_i_next(
         const char **segment)
 {
         if(!iter->list) {
-                law_uri_path_i_free(iter);
                 return NULL;
         }
         *segment = pgc_ast_tostr(iter->list->val);

@@ -22,6 +22,8 @@ struct law_ht_hdrs_i {
         struct pgc_ast_lst *list;
 };
 
+const size_t sizeof_law_ht_hdrs_i = sizeof(struct law_ht_hdrs_i);
+
 /** HTTP Connection State */
 struct law_ht_conn {
         int socket;
@@ -69,16 +71,13 @@ const char *law_ht_hdrs_get(
         return NULL;
 }
 
-struct law_ht_hdrs_i *law_ht_hdrs_elems(struct law_ht_hdrs *hdrs)
+struct law_ht_hdrs_i *law_ht_hdrs_elems(
+        struct law_ht_hdrs *hdrs,
+        void *address)
 {
-        struct law_ht_hdrs_i *it = malloc(sizeof(struct law_ht_hdrs_i));
+        struct law_ht_hdrs_i *it = address;
         it->list = hdrs->list;
         return it;
-}
-
-void law_ht_hdrs_i_free(struct law_ht_hdrs_i *iter)
-{
-        free(iter);
 }
 
 struct law_ht_hdrs_i *law_ht_hdrs_i_next(
@@ -87,7 +86,6 @@ struct law_ht_hdrs_i *law_ht_hdrs_i_next(
         const char **value)
 {
         if(!iter->list) {
-                law_ht_hdrs_i_free(iter);
                 return NULL;
         }
         struct pgc_ast_lst *ele = pgc_ast_tolst(iter->list->val);
@@ -692,9 +690,9 @@ sel_err_t law_ht_creq_done(struct law_ht_creq *request)
 struct law_ht_sctx_cfg *law_ht_sctx_cfg_sanity()
 {
         static struct law_ht_sctx_cfg cfg;
-        cfg.in_length = 0x4000;
+        cfg.in_length = 0x2000;
         cfg.in_guard = 0x1000;
-        cfg.out_length = 0x4000;
+        cfg.out_length = 0x2000;
         cfg.out_guard = 0x1000;
         cfg.heap_length = 0xF000;
         cfg.heap_guard = 0x1000;
