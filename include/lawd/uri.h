@@ -7,6 +7,7 @@
 #include "lawd/error.h"
 #include <stddef.h>
 
+/** URI Part */
 enum law_uri_part {
         LAW_URI_SCHEME,                 /** URI Scheme */
         LAW_URI_HOST,                   /** URI Host */
@@ -22,19 +23,13 @@ enum law_uri_part {
 struct law_uri_path;
 
 /** Path Iterator */
-struct law_uri_path_i;
+struct law_uri_path_iter;
 
 /** URI Query */
 struct law_uri_query;
 
 /** Query Iterator */
-struct law_uri_query_i;
-
-/** Defined as sizeof(struct law_uri_path_i) */
-extern const size_t sizeof_law_uri_path_i;
-
-/** Defined as sizeof(struct law_uri_query_i) */
-extern const size_t sizeof_law_uri_query_i;
+struct law_uri_query_iter;
 
 /** Uniform Resource Identifier */
 struct law_uri {
@@ -45,9 +40,7 @@ struct law_uri {
         char *query;
 };
 
-/** 
- * Get the number of segments in the path.
- */
+/** Get the number of segments in the path. */
 size_t law_uri_path_count(struct law_uri_path *path);
 
 /** 
@@ -58,67 +51,49 @@ const char *law_uri_path_at(
         struct law_uri_path *path, 
         const ssize_t index);
 
-/**
- * Initialize an iterator for the path's elements.
- */
-struct law_uri_path_i *law_uri_path_segs(
+/** Initialize an iterator for the path's elements. */
+struct law_uri_path_iter *law_uri_path_segs(
         struct law_uri_path *path,
-        void *address);
+        void *(*alloc)(void *state, const size_t nbytes),
+        void *alloc_state);
 
-/**
- * Increment the path iterator.
- */
-struct law_uri_path_i *law_uri_path_i_next(
-        struct law_uri_path_i *path,
+/** Increment the path iterator. */
+struct law_uri_path_iter *law_uri_path_next(
+        struct law_uri_path_iter *path,
         const char **segment);
 
-/**
- * Get the number of query elements in the collection.
- */
+/** Get the number of query elements in the collection. */
 size_t law_uri_query_count(struct law_uri_query *query);
 
-/** 
- * Get the query value by name. 
- */
+/** Get the query value by name. */
 const char *law_uri_query_get(
         struct law_uri_query *query, 
         const char *name);
 
-/**
- * Initialize an iterator for the query's elements.
- */
-struct law_uri_query_i *law_uri_query_elems(
+/** Initialize an iterator for the query's elements. */
+struct law_uri_query_iter *law_uri_query_elems(
         struct law_uri_query *query,
-        void *address);
+        void *(*alloc)(void *state, const size_t nbytes),
+        void *alloc_state);
 
-/**
- * Increment the query iterator.
- */
-struct law_uri_query_i *law_uri_query_i_next(
-        struct law_uri_query_i *query,
+/** Increment the query iterator. */
+struct law_uri_query_iter *law_uri_query_next(
+        struct law_uri_query_iter *query,
         const char **name,
         const char **value);
 
-/** 
- * Print out URI to FILE.
- */
+/** Print out URI to FILE. */
 sel_err_t law_uri_fprint(FILE *file, struct law_uri *uri);
 
-/**
- * Print out URI to IO buffer.
- */
+/** Print out URI to IO buffer. */
 sel_err_t law_uri_bprint(struct pgc_buf *buffer, struct law_uri *uri);
 
-/**
- * Populate the URI from an AST.
- */
+/** Populate the URI from an AST. */
 struct law_uri *law_uri_from_ast(
         struct law_uri *uri,
         struct pgc_ast_lst *ast);
 
-/**
- * Parse the URI starting at the buffer's current offset.
- */
+/** Parse the URI starting at the buffer's current offset. */
 sel_err_t law_uri_parse(
         const struct pgc_par *parser,
         struct pgc_buf *buffer,

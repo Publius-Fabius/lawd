@@ -63,7 +63,7 @@ sel_err_t ws_tick(struct law_worker *worker, struct law_data data)
 
 int main(int argc, char **args)
 {
-        struct law_wd_cfg wd_cfg = *law_wd_cfg_sanity();
+        struct law_wd_cfg wd_cfg = *law_wd_sanity();
         wd_cfg.handler = ws_handler;
         wd_cfg.onerror = ws_onerror;
         struct law_webd *webd = law_wd_create(&wd_cfg);       
@@ -73,7 +73,7 @@ int main(int argc, char **args)
         ht_cfg.data.u.ptr = webd;
         struct law_ht_sctx *sctx = law_ht_sctx_create(&ht_cfg);
 
-        struct law_srv_cfg srv_cfg = *law_srv_cfg_sanity();
+        struct law_srv_cfg srv_cfg = *law_srv_sanity();
         srv_cfg.data.u.ptr = sctx;
         srv_cfg.accept = law_ht_accept;
         srv_cfg.init = ws_init;

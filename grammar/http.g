@@ -47,9 +47,9 @@ ext law_uri_par cap_authority;
 #                 | authority_form
 #                 | asterisk_form 
 let request_target = 
-          (law_ht_cap_origin_form $ cap_origin_URI) 
-        | (law_ht_cap_absolute_form $ cap_absolute_URI)
-        | (law_ht_cap_authority_form $ cap_authority);
+          (law_htp_cap_origin_form $ cap_origin_URI) 
+        | (law_htp_cap_absolute_form $ cap_absolute_URI)
+        | (law_htp_cap_authority_form $ cap_authority);
 
 # HTTP_name = "HTTP" ; HTTP
 # HTTP_version = HTTP_name "/" DIGIT "." DIGIT
@@ -59,9 +59,9 @@ let HTTP_version = HTTP_name '/' DIGIT '.' DIGIT;
 # method = token
 # start_line = method SP request_target SP HTTP_version CRLF
 let request_line = 
-    (law_ht_cap_method $ token) SP 
+    (law_htp_cap_method $ token) SP 
     request_target SP 
-    (law_ht_cap_version $ HTTP_version) CRLF;
+    (law_htp_cap_version $ HTTP_version) CRLF;
 
 # field_vchar = VCHAR
 # field_content  = field_vchar [ 1*( SP | HTAB ) field_vchar ]
@@ -74,10 +74,10 @@ let field_value = 0_1023(field_content);
 # field-name     = token
 # header_field = field_name ":" OWS field_value OWS
 let header_field = 
-        (law_ht_cap_field_name $ token) ':' 
-        OWS (law_ht_cap_field_value $ field_value) OWS;
+        (law_htp_cap_field_name $ token) ':' 
+        OWS (law_htp_cap_field_value $ field_value) OWS;
 
-let cap_field = law_ht_cap_field $ header_field;
+let parse_field = law_htp_cap_field $ header_field;
 
  # status-code = 3DIGIT 
  let status_code = 3_3DIGIT;
@@ -87,10 +87,10 @@ let cap_field = law_ht_cap_field $ header_field;
 
 # status-line = HTTP-version SP status-code SP reason-phrase CRLF
 let status_line = 
-        (law_ht_cap_version $ HTTP_version) SP 
-        (law_ht_cap_status $ status_code) SP 
+        (law_htp_cap_version $ HTTP_version) SP 
+        (law_htp_cap_status $ status_code) SP 
         reason_phrase CRLF;
 
-let request_head = request_line 0_127(cap_field CRLF) CRLF;
+let request_head = request_line 0_127(parse_field CRLF) CRLF;
 
-let response_head = status_line 0_127(cap_field CRLF) CRLF;
+let response_head = status_line 0_127(parse_field CRLF) CRLF;

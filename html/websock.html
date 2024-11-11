@@ -1,11 +1,17 @@
-<html><script type="text/javascript">
+<html>
+<script type="text/javascript">
 
-        const ws = new WebSocket(
-                "ws://localhost:80",
-                "one",
-        );
-        ws.onopen = (event) => {
-                
-        };
+const ws = new WebSocket(
+        "ws://localhost:80",
+        "one",
+);
+
+ws.onopen = (event) => {
+        
+};
+
+ws.onmessage = (event) => {
+        console.log(event.data);
+};
 
 </script></html>

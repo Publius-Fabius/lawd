@@ -7,7 +7,6 @@
 #include "lawd/time.h"
 #include "lawd/pqueue.h"
 #include "lawd/log.h"
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/epoll.h>
@@ -26,7 +25,7 @@
 #define LAW_INIT_TASKS_CAP 2
 #endif
 
-struct law_srv_cfg *law_srv_cfg_sanity()
+struct law_srv_cfg law_srv_sanity()
 {
         static struct law_srv_cfg cfg;
         cfg.protocol            = LAW_SRV_TCP;
@@ -46,7 +45,7 @@ struct law_srv_cfg *law_srv_cfg_sanity()
         cfg.tick                = NULL;
         cfg.accept              = NULL;
         cfg.errors              = stderr;
-        return &cfg;
+        return cfg;
 }
 
 enum law_srv_mode {
@@ -415,7 +414,7 @@ sel_err_t law_srv_del(struct law_worker *w, const int fd)
         return LAW_ERR_OK;
 }
 
-sel_err_t law_srv_wait(struct law_worker *worker, const int64_t timeout)
+sel_err_t law_srv_sleep(struct law_worker *worker, const int64_t timeout)
 {
         struct law_task *task = worker->active;
         const int64_t wake = law_time_millis() + timeout;
@@ -842,4 +841,70 @@ sel_err_t law_srv_close(struct law_server *server)
 {
         SEL_IO_QUIETLY(close(server->socket));
         return SEL_ERR_OK;
+}
+
+sel_err_t law_srv_await1(
+        struct law_worker *worker,
+        const int fd,
+        const int64_t timeout,
+        law_srv_io1_t callback,
+        void *arg)
+{
+        struct law_event ev; 
+        memset(&ev, 0, sizeof(struct law_event));
+        int64_t now = law_time_millis();
+        const int64_t wakeup = timeout + now;
+        for(int I = 0; I < 512; ++I) {
+                sel_err_t err = callback(arg);
+                int event;
+                switch(err) {
+                        case LAW_ERR_OK: 
+                                return LAW_ERR_OK;
+                        case LAW_ERR_WNTW: 
+                                event = LAW_SRV_POLLOUT;
+                                break;
+                        case LAW_ERR_WNTR: 
+                                event = LAW_SRV_POLLIN;
+                                break;
+                        default: 
+                                return err;
+                }
+                now = law_time_millis();
+                if(wakeup <= now) {
+                        return LAW_ERR_TTL;
+                } else if(event != ev.events) {
+                        SEL_TRY_QUIETLY(law_srv_mod(worker, fd, &ev));
+                } if((err = law_srv_sleep(worker, wakeup - now)) < 0) {
+                        return err; 
+                }               
+        }
+        return LAW_ERR_TTL;
+}
+
+struct law_srv_await2_state {
+        law_srv_io2_t callback;
+        void *arg0, *arg1;
+};
+
+sel_err_t law_srv_await2_run(void *arg)
+{
+        struct law_srv_await2_state *state = arg;
+        return state->callback(state->arg0, state->arg1);
+}
+
+sel_err_t law_srv_await2(
+        struct law_worker *worker,
+        const int fd,
+        const int64_t timeout,
+        law_srv_io2_t callback,
+        void *arg0,
+        void *arg1)
+{
+        struct law_srv_await2_state state = { callback, arg0, arg1 };
+        return law_srv_await1(
+                worker,
+                fd, 
+                timeout,
+                law_srv_await2_run,
+                &state);
 }

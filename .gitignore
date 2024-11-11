@@ -3,3 +3,4 @@
 tmp/cert.pem 
 tmp/csr.pem
 tmp/key.pem
+tmp/pub.pem

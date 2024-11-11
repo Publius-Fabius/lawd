@@ -80,34 +80,22 @@ struct law_srv_cfg {
         FILE *errors;                           /** Error Log */
 };
 
-/**
- * A sane and simple configuration.
- */
-struct law_srv_cfg *law_srv_cfg_sanity();
+/** A sane and simple configuration. */
+struct law_srv_cfg law_srv_sanity();
 
-/** 
- * Create a new server. 
- */
+/** Create a new server. */
 struct law_server *law_srv_create(struct law_srv_cfg *config);
 
-/** 
- * Destroy the server. 
- */
+/** Destroy the server. */
 void law_srv_destroy(struct law_server *server);
 
-/**
- * Get the server's socket.
- */
+/** Get the server's socket. */
 int law_srv_socket(struct law_server *server);
 
-/** 
- * Get the server's error log.
- */
+/**  Get the server's error log. */
 FILE *law_srv_errors(struct law_server *server);
 
-/**
- * Start listening for connections and drop root privileges.
- */
+/** Start listening for connections and drop root privileges. */
 sel_err_t law_srv_open(struct law_server *server);
 
 /**
@@ -117,64 +105,72 @@ sel_err_t law_srv_open(struct law_server *server);
  */
 sel_err_t law_srv_close(struct law_server *server);
 
-/** 
- * Start the server by entering its main loop.
- */
+/** Start the server by entering its main loop. */
 sel_err_t law_srv_start(struct law_server *server);
 
 /**
- * Signal the server to stop.  Eventually the server will return from 
+ * Signal the server to stop.  Eventually, the server will return from 
  * law_start with a LAW_ERR_OK code. 
  */
 sel_err_t law_srv_stop(struct law_server *server);
 
-/**
- * Get the worker's server.
- */
+/** Get the worker's server. */
 struct law_server *law_srv_server(struct law_worker *worker);
 
-/**
- * Get the worker's active task.
- */
+/** Get the worker's active task. */
 struct law_task *law_srv_active(struct law_worker *worker);
 
-/** 
- * Add a file descriptor to the polling set.
- */
+/** Add a file descriptor to the polling set. */
 sel_err_t law_srv_add(
         struct law_worker *worker, 
         const int fd,
         struct law_event *event);
 
-/**
- * Modify the events the file descriptor listens for.
- */
+/** Modify the events the file descriptor listens for. */
 sel_err_t law_srv_mod(
         struct law_worker *worker, 
         const int fd,
         struct law_event *event);
 
-/**
- * Remove a file descriptor from the polling set.
- */
+/** Remove a file descriptor from the polling set. */
 sel_err_t law_srv_del(struct law_worker *worker, const int fd);
 
-/**
- * Wait for timeout microseconds unless a signal is received.
+/** 
+ * Yield the current coroutine for timeout milliseconds or until a 
+ * notification is received. 
  */
-sel_err_t law_srv_wait(struct law_worker *worker, const int64_t timeout);
+sel_err_t law_srv_sleep(struct law_worker *worker, const int64_t timeout);
 
-/**
- * Add the task to the notification queue.
- */
+/** Add the task to the notification queue. */
 sel_err_t law_srv_notify(struct law_task *task);
 
-/**
- * Spawn a new coroutine.
- */
+/** Spawn a new coroutine. */
 sel_err_t law_srv_spawn(
         struct law_server *server,
         law_srv_call_t callback,
         struct law_data *data);
+
+/** IO Callback - One Argument */
+typedef sel_err_t (*law_srv_io1_t)(void *arg);
+
+/** IO Callback - Two Arguments */
+typedef sel_err_t (*law_srv_io2_t)(void *arg0, void *arg1);
+
+/** Wait for an IO action to succeed. */
+sel_err_t law_srv_await1(
+        struct law_worker *worker,
+        const int fd,
+        const int64_t timeout,
+        law_srv_io1_t callback,
+        void *arg);
+
+/** Wait for an IO action to succeed. */
+sel_err_t law_srv_await2(
+        struct law_worker *worker,
+        const int fd,
+        const int64_t timeout,
+        law_srv_io2_t callback,
+        void *arg0,
+        void *arg1);
 
 #endif

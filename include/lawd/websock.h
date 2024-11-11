@@ -12,11 +12,11 @@
 #define LAW_WS_MAGIC_STR_LEN 36
 
 /** Maximum WebSocket Accept Length */
-#define LAW_WS_MAX_ACCEPT 32
+#define LAW_WS_ACCEPT_BUF_LEN 32
 
 /** Buffer for Sec-WebSocket-Accept */
 struct law_ws_accept_buf {
-        uint8_t bytes[LAW_WS_MAX_ACCEPT];
+        uint8_t bytes[LAW_WS_ACCEPT_BUF_LEN];
 };
 
 /** WebSocket Masking Key Length */

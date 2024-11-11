@@ -36,13 +36,13 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
                 SEL_HALT();
         
         puts("waiting once");
-        if(law_srv_wait(w, 1000) != LAW_SRV_SIGIO)
+        if(law_srv_sleep(w, 1000) != LAW_SRV_SIGIO)
                 SEL_HALT();
         
         read(sock, in, 1024);
 
         puts("waiting twice");
-        law_srv_wait(w, 1000);
+        law_srv_sleep(w, 1000);
 
         puts("waiting thrice");
         if(law_srv_del(w, sock) != LAW_ERR_OK)
@@ -67,7 +67,7 @@ int main(int argc, char ** argv)
 
         int data = 0;
 
-        struct law_srv_cfg cfg = *law_srv_cfg_sanity();
+        struct law_srv_cfg cfg = law_srv_sanity();
         cfg.init = initer;
         cfg.tick = ticker;
         cfg.accept = accepter;

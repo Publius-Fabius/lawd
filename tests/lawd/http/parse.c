@@ -1,17 +1,16 @@
-
-#include "lawd/http.h"
-#include "lawd/error.h"
+#include "lawd/http/parse.h"
+#include "lawd/uri.h"
 #include "pgenc/lang.h"
 #include <stdlib.h>
 #include <string.h>
 
-extern const struct pgc_par law_ht_par_tchar;
+extern const struct pgc_par law_htp_tchar;
 
 void test_tchar()
 {
         SEL_INFO();
         
-        const struct pgc_par *p = &law_ht_par_tchar;
+        const struct pgc_par *p = &law_htp_tchar;
 
         /* tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*"
                 / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
@@ -47,13 +46,13 @@ void test_tchar()
         SEL_TEST(pgc_par_runs(p, "\n", NULL) < 0);
 }
 
-extern const struct pgc_par law_ht_par_token;
+extern const struct pgc_par law_htp_token;
 
 void test_token()
 {
         SEL_INFO();
         
-        const struct pgc_par *p = &law_ht_par_token;
+        const struct pgc_par *p = &law_htp_token;
 
         /* tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*"
                 / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
@@ -73,6 +72,7 @@ void test_token()
         SEL_TEST(pgc_par_runs(p, "\n", NULL) < 0);
 }
 
+
 enum pgc_err test_lang_parse(
         const struct pgc_par *parser, 
         char *text,
@@ -89,25 +89,25 @@ enum pgc_err test_lang_parse(
         return pgc_lang_parse(parser, &buf, &stk, result);
 }
 
-extern const struct pgc_par law_ht_par_request_target;
+extern const struct pgc_par law_htp_request_target;
 
 void test_request_target()
 {
         SEL_INFO();
 
-        const struct pgc_par *p = &law_ht_par_request_target;
+        const struct pgc_par *p = &law_htp_request_target;
 
         struct pgc_ast_lst *list;
         struct pgc_ast *value;
 
         SEL_TEST(test_lang_parse(p, "*", &list) == PGC_ERR_OK);
-        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HT_AUTHORITY_FORM);
+        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HTP_AUTHORITY_FORM);
         value = pgc_ast_tolst(list->val)->val;
         SEL_TEST(pgc_syn_typeof(value) == LAW_URI_HOST);
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "*"));
 
         SEL_TEST(test_lang_parse(p, "/a/bc?query", &list) == PGC_ERR_OK);
-        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HT_ORIGIN_FORM);
+        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HTP_ORIGIN_FORM);
         list = pgc_ast_tolst(list->val);
         SEL_TEST(pgc_ast_len(list) == 2);
         value = list->val;
@@ -120,7 +120,7 @@ void test_request_target()
         SEL_TEST(test_lang_parse(p, 
                 "http://a:80/bc?a=1&b=2", 
                 &list) == PGC_ERR_OK);
-        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HT_ABSOLUTE_FORM);
+        SEL_TEST(pgc_syn_typeof(list->val) == LAW_HTP_ABSOLUTE_FORM);
         list = pgc_ast_tolst(list->val);
         SEL_TEST(pgc_ast_len(list) == 5);
         value = pgc_ast_at(list, 0)->val;
@@ -140,13 +140,13 @@ void test_request_target()
         SEL_TEST(!strcmp(pgc_ast_tostr(value), "a=1&b=2"));
 }
 
-extern const struct pgc_par law_ht_par_request_head;
+extern const struct pgc_par law_htp_request_head;
 
 void test_request_head()
 {
         SEL_INFO();
 
-        const struct pgc_par *p = &law_ht_par_request_head;
+        const struct pgc_par *p = &law_htp_request_head;
 
         struct pgc_ast_lst *list;
 

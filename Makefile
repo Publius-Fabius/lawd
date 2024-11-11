@@ -146,22 +146,37 @@ bin/test_uri : tests/lawd/uri.c \
 	lib/libpgenc.a 
 	$(CC) $(CFLAGS) -o $@ $^ -lssl
 
-# http.h
+# http/parse.h
+build/lawd/http_parse.o: source/lawd/http/parse.c \
+	include/lawd/http/parse.h includes
+	$(CC) $(CFLAGS) -c -o $@ $<
 tmp/lawd/http_parsers.c : grammar/http.g bin/pgenc
-	bin/pgenc -g $< -s $@ -d law_ht_par
-build/lawd/http_parsers.o : tmp/lawd/http_parsers.c includes
+	bin/pgenc -g $< -s $@ -d law_htp
+build/lawd/http_parsers.o: tmp/lawd/http_parsers.c
 	$(CC) $(CFLAGS) -c -o $@ $<
-build/lawd/http.o : source/lawd/http.c 
-	$(CC) $(CFLAGS) -c -o $@ $<
-bin/test_http: tests/lawd/http.c \
+bin/test_http_parse: tests/lawd/http/parse.c \
+	build/lawd/http_parse.o \
 	build/lawd/http_parsers.o \
 	build/lawd/uri_parsers.o \
-	build/lawd/http.o \
 	build/lawd/uri.o \
-	build/lawd/safemem.o \
-	lib/libpgenc.a \
-	lib/libselc.a 
-	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
+	lib/libselc.a \
+	lib/libpgenc.a 
+	$(CC) $(CFLAGS) -o $@ $^ -lssl
+
+# http/headers.h
+build/lawd/http_headers.o: source/lawd/http/headers.c \
+	include/lawd/http/headers.h 
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# http/conn.h
+build/lawd/http_conn.o: source/lawd/http/conn.c \
+	include/lawd/http/conn.h 
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# http/server.h
+build/lawd/http_server.o: source/lawd/http/server.c \
+	include/lawd/http/server.h 
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # webd.h
 build/lawd/webd.o : source/lawd/webd.c includes
@@ -174,12 +189,14 @@ lib/liblawd.a : \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/pqueue.o \
-	build/lawd/cqueue.o \
 	build/lawd/server.o \
 	build/lawd/uri_parsers.o \
 	build/lawd/uri.o \
+	build/lawd/http_parse.o \
 	build/lawd/http_parsers.o \
-	build/lawd/http.o \
+	build/lawd/http_server.o \
+	build/lawd/http_conn.o \
+	build/lawd/http_headers.o \
 	build/lawd/time.o \
 	build/lawd/log.o \
 	build/lawd/webd.o
@@ -208,6 +225,9 @@ suite: \
 
 tmp/key.pem:
 	openssl genrsa -out $@
+
+tmp/pub.pem:
+	openssl rsa -in tmp/key.pem -pubout -out tmp/pub.pem
 
 tmp/csr.pem: tmp/key.pem
 	openssl req -new -key $< -out $@

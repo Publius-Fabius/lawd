@@ -8,7 +8,7 @@ struct law_uri_query {
         struct pgc_ast_lst *list;
 };
 
-struct law_uri_query_i {
+struct law_uri_query_iter {
         struct pgc_ast_lst *list;
 };
 
@@ -17,13 +17,9 @@ struct law_uri_path {
         size_t count;
 };
 
-struct law_uri_path_i {
+struct law_uri_path_iter {
         struct pgc_ast_lst *list;
 };
-
-const size_t sizeof_law_uri_query_i = sizeof(struct law_uri_query_i);
-
-const size_t sizeof_law_uri_path_i = sizeof(struct law_uri_path_i);
 
 sel_err_t law_uri_fprint(FILE *file, struct law_uri *uri)
 {
@@ -51,11 +47,7 @@ struct law_uri *law_uri_from_ast(
         struct law_uri *uri,
         struct pgc_ast_lst *list)
 {
-        uri->scheme = NULL;
-        uri->host = NULL;
-        uri->port = NULL;
-        uri->path = NULL;
-        uri->query = NULL;
+        memset(uri, 0, sizeof(struct law_uri));
         for(struct pgc_ast_lst *i = list; i; i = i->nxt) {
                 switch(pgc_syn_typeof(i->val)) {
                         case LAW_URI_HOST:
@@ -110,10 +102,8 @@ sel_err_t law_uri_parse_query(
                 heap,
                 &result);
         
-        if(err != PGC_ERR_OK) {
-                return err;
-        }
-
+        if(err != PGC_ERR_OK) return err;
+        
         *query = pgc_stk_push(heap, sizeof(struct law_uri_query));
         (*query)->list = result;
 
@@ -130,45 +120,36 @@ const char *law_uri_query_get(
         struct law_uri_query *query, 
         const char *name)
 {
-        static const char *EMPTY = "";
         for(struct pgc_ast_lst *l = query->list; l; l = l->nxt) {
-                struct pgc_ast_lst *tuple = pgc_ast_tolst(l->val);
-                if(strcmp(pgc_ast_tostr(tuple->val), name)) {
-                        continue;
-                } else if(tuple->nxt) {
-                        return pgc_ast_tostr(tuple->nxt->val);
-                } else {
-                        return EMPTY;
-                }
+                struct pgc_ast_lst *tpl = pgc_ast_tolst(l->val);
+                if(!strcmp(pgc_ast_tostr(tpl->val), name))
+                        return tpl->nxt ? pgc_ast_tostr(tpl->nxt->val) : "";
         }
         return NULL;
 }
 
-struct law_uri_query_i *law_uri_query_elems(
+struct law_uri_query_iter *law_uri_query_elems(
         struct law_uri_query *query,
-        void *address)
+        void *(*alloc)(void *state, const size_t nbytes),
+        void *alloc_state)
 {
-        SEL_ASSERT(query && address);
-        struct law_uri_query_i *iter = address;
+        struct law_uri_query_iter *iter = alloc(
+                alloc_state, 
+                sizeof(struct law_uri_query_iter));
+        if(!iter) return NULL;
         iter->list = query->list;
         return iter;
 }
 
-struct law_uri_query_i *law_uri_query_i_next(
-        struct law_uri_query_i *query,
+struct law_uri_query_iter *law_uri_query_next(
+        struct law_uri_query_iter *query,
         const char **name,
         const char **value)
 {
-        if(!query->list) {
-                return NULL;
-        }
+        if(!query->list) return NULL;
         struct pgc_ast_lst *lst = pgc_ast_tolst(query->list->val);
-        *name = pgc_ast_tostr(lst->val);
-        if(lst->nxt) {
-                *value = pgc_ast_tostr(lst->nxt->val);
-        } else {
-                *value = "";
-        }
+        if(name) *name = pgc_ast_tostr(lst->val);
+        if(value) *value = lst->nxt ? pgc_ast_tostr(lst->nxt->val) : "";
         query->list = query->list->nxt;
         return query;
 }
@@ -191,9 +172,7 @@ sel_err_t law_uri_parse_path(
                 &buf,
                 heap,
                 &result);
-        if(err != PGC_ERR_OK) {
-                return err;
-        }
+        if(err != PGC_ERR_OK) return err;
 
         *path = pgc_stk_push(heap, sizeof(struct law_uri_path));
         (*path)->list = result;
@@ -217,25 +196,25 @@ const char *law_uri_path_at(
         return pgc_ast_tostr(pgc_ast_at(path->list, i)->val);
 }
 
-
-struct law_uri_path_i *law_uri_path_segs(
+struct law_uri_path_iter *law_uri_path_segs(
         struct law_uri_path *path,
-        void *address)
+        void *(*alloc)(void *state, const size_t nbytes),
+        void *alloc_state)
 {
-        SEL_ASSERT(path && address);
-        struct law_uri_path_i *iter = address;
+        struct law_uri_path_iter *iter = alloc(
+                alloc_state, 
+                sizeof(struct law_uri_path_iter));
+        if(!iter) return NULL;
         iter->list = path->list;
         return iter;
 }
 
-struct law_uri_path_i *law_uri_path_i_next(
-        struct law_uri_path_i *iter,
+struct law_uri_path_iter *law_uri_path_next(
+        struct law_uri_path_iter *iter,
         const char **segment)
 {
-        if(!iter->list) {
-                return NULL;
-        }
-        *segment = pgc_ast_tostr(iter->list->val);
+        if(!iter->list) return NULL;
+        if(segment) *segment = pgc_ast_tostr(iter->list->val);
         iter->list = iter->list->nxt;
         return iter;
 }

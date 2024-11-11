@@ -18,7 +18,7 @@ const char *law_ws_gen_accept(
         EVP_DigestUpdate(sha_ctx, key, strlen(key));
         EVP_DigestUpdate(sha_ctx, LAW_WS_MAGIC_STR, LAW_WS_MAGIC_STR_LEN);
         EVP_DigestFinal_ex(sha_ctx, hash, NULL);
-        EVP_EncodeBlock(buf->bytes, hash, LAW_WS_MAX_ACCEPT);
+        EVP_EncodeBlock(buf->bytes, hash, LAW_WS_ACCEPT_BUF_LEN);
         return (const char*)buf->bytes;
 }
  
@@ -139,6 +139,7 @@ sel_err_t law_ws_read_head_start(
         uint8_t buf[BUF_LEN];
         SEL_TRY_QUIETLY(law_wd_ensure(request, BUF_LEN));
         SEL_TRY_QUIETLY(pgc_buf_get(in, buf, BUF_LEN)); 
+        head->fin = buf[0] & 1;
         head->opcode = buf[0] >> 4;
         head->mask = 1 & buf[1];
         if(!head->mask) {
