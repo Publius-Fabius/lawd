@@ -62,9 +62,8 @@ sel_err_t law_htc_read_data(struct law_htconn *conn)
         const size_t block = end - pos;
         const size_t avail = max - block;
 
-        SEL_ASSERT(pos <= end);
-        SEL_ASSERT(block <= max);
-
+        SEL_ASSERT(pos <= end && block <= max);
+        
         if(!avail) {
                 return LAW_ERR_OOB;
         } else switch(conn->security) {
@@ -77,18 +76,18 @@ sel_err_t law_htc_read_data(struct law_htconn *conn)
         }
 }
 
-sel_err_t law_htc_ensure(struct law_htconn *conn, const size_t *nbytes)
+sel_err_t law_htc_ensure_input(struct law_htconn *conn, const size_t nbytes)
 {
         struct pgc_buf *in = conn->in;
         const size_t offset = pgc_buf_tell(in);
         size_t end = pgc_buf_end(in);
         SEL_ASSERT(offset <= end);
-        if((end - offset) >= *nbytes) 
+        if((end - offset) >= nbytes) 
                 return LAW_ERR_OK;
         SEL_TRY_QUIETLY(law_htc_read_data(conn));
         end = pgc_buf_end(in);
         SEL_ASSERT(offset <= end);
-        return (end - offset) >= *nbytes ? 
+        return (end - offset) >= nbytes ? 
                 LAW_ERR_OK : 
                 LAW_ERR_WNTR;
 }
@@ -153,6 +152,30 @@ sel_err_t law_htc_write_data(struct law_htconn *conn)
         }
 }
 
+sel_err_t law_htc_ensure_output(struct law_htconn *conn, const size_t nbytes)
+{
+        struct pgc_buf *out = conn->out;
+        size_t offset = pgc_buf_tell(out);
+        const size_t end = pgc_buf_end(out);
+        const size_t max = pgc_buf_max(out);
+        SEL_ASSERT(offset <= end);
+        size_t unwritten = end - offset;
+        SEL_ASSERT(unwritten <= max);
+        if((max - unwritten) >= nbytes)
+                return LAW_ERR_OK;
+        const sel_err_t err = law_htc_write_data(conn);
+        if(err != LAW_ERR_OK && err != LAW_ERR_WNTW && err != LAW_ERR_WNTR)
+                return err;
+        offset = pgc_buf_tell(out);
+        SEL_ASSERT(offset <= end);
+        unwritten = end - offset;
+        SEL_ASSERT(unwritten <= max);
+        if((max - unwritten) >= nbytes)
+                return LAW_ERR_OK;
+        else 
+                return LAW_ERR_WNTW;
+}
+
 sel_err_t law_htc_flush(struct law_htconn *conn)
 {
         struct pgc_buf *out = conn->out;
@@ -204,8 +227,7 @@ sel_err_t law_htc_read_head(
         
         err = pgc_buf_seek(in, base);
 
-        SEL_ASSERT(err == PGC_ERR_OK);
-        SEL_ASSERT(base <= head_end);
+        SEL_ASSERT(err == PGC_ERR_OK && base <= head_end);
 
         struct pgc_buf lens; 
         pgc_buf_lens(&lens, in, head_end - base);
@@ -213,7 +235,7 @@ sel_err_t law_htc_read_head(
         err = pgc_lang_parse_ex(parser, stack, &lens, heap, head);
         if(err != PGC_ERR_OK) 
                 return LAW_ERR_SYN;
-        
+        SEL_ASSERT(pgc_buf_seek(in, head_end) == PGC_ERR_OK);
         return LAW_ERR_OK;
 }
 

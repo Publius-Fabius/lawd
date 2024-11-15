@@ -64,7 +64,7 @@ sel_err_t law_log_error_ip(
         char *datetime = law_time_datetime(&buf);
         const pid_t pid = getpid();
         SEL_TEST(fprintf(errors, 
-               "[%s] [%s] %i %s \"%s\"\r\n", 
+               "[%s] [%s] %i \"%s\" \"%s\"\r\n", 
                 datetime,
                 ipaddr,
                 pid,

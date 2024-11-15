@@ -104,8 +104,9 @@ static sel_err_t law_wd_service_conn(
         FILE *errs = law_srv_errors(law_srv_server(worker));
         law_wd_onerror_t onerror = webd->cfg.onerror;
         const size_t begin_content = pgc_buf_tell(out);
-        struct law_hts_head head;
         
+        struct law_hts_head head;
+        memset(&head, 0, sizeof(struct law_hts_head));
         sel_err_t err = law_srv_await2(
                 worker, 
                 sock, 
@@ -118,7 +119,7 @@ static sel_err_t law_wd_service_conn(
                 SEL_FREPORT(errs, LAW_ERR_TTL);
         }
         
-        int status;
+        int status = 0;
         if(err == LAW_ERR_TTL) {
                 status = 408; 
                 err = onerror(webd, worker, req, status, data);
@@ -141,6 +142,9 @@ static sel_err_t law_wd_service_conn(
                         err = onerror(webd, worker, req, status, data);
                 }
         }
+
+        const size_t end_content = pgc_buf_tell(out);
+        SEL_ASSERT(begin_content <= end_content);
         law_wd_log_access(
                 webd->cfg.access, 
                 sock, 
@@ -148,7 +152,7 @@ static sel_err_t law_wd_service_conn(
                 &head.target, 
                 head.version, 
                 status, 
-                pgc_buf_tell(out) - begin_content);
+                end_content - begin_content);
         return err;
 }
 
@@ -159,9 +163,11 @@ static void law_wd_accept_ssl(
         struct law_data data)
 {
         if(req->conn.security != LAW_HTC_SSL) {
+                SEL_ASSERT(req->conn.security == LAW_HTC_UNSECURED);
                 (void)law_wd_service_conn(webd, worker, req, data);
                 return;
         }
+        
         FILE *errs = law_srv_errors(law_srv_server(worker));
         const int socket = req->conn.socket;
         sel_err_t err = law_htc_ssl_accept(&req->conn, req->ctx->ssl_ctx);

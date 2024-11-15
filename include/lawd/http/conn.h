@@ -45,7 +45,19 @@ sel_err_t law_htc_read_data(struct law_htconn *conn);
  * LAW_ERR_SSL - SSL error. 
  * LAW_ERR_OK - All OK.
  */
-sel_err_t law_htc_ensure(struct law_htconn *conn, const size_t *nbytes);
+sel_err_t law_htc_ensure_input(struct law_htconn *conn, const size_t nbytes);
+
+/**
+ * Ensure nbytes of available space in the output buffer.
+ * LAW_ERR_WNTR - Wants to read.
+ * LAW_ERR_WNTW - Wants to write.
+ * LAW_ERR_OOB - Buffer out of bounds.
+ * LAW_ERR_EOF - End of file. 
+ * LAW_ERR_SYS - Socket IO. 
+ * LAW_ERR_SSL - SSL error. 
+ * LAW_ERR_OK - All OK.
+ */
+sel_err_t law_htc_ensure_output(struct law_htconn *conn, const size_t nbytes);
 
 /**
  * Write data from the output buffer.

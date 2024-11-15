@@ -59,8 +59,8 @@ void test_srv_create()
         SEL_TEST(!server);
         law_srv_destroy(server);
 
-        cfg.workers = 1;
-        server = law_srv_create(law_srv_sanity());
+        cfg = law_srv_sanity();
+        server = law_srv_create(&cfg);
         SEL_TEST(server);
 
         law_srv_destroy(server);
@@ -70,7 +70,8 @@ void test_worker()
 {
         SEL_INFO();
 
-        struct law_server *server = law_srv_create(law_srv_sanity());
+        struct law_srv_cfg cfg = law_srv_sanity();
+        struct law_server *server = law_srv_create(&cfg);
         struct law_worker *worker = law_worker_create(server, 0);
         law_worker_destroy(worker);
         law_srv_destroy(server);

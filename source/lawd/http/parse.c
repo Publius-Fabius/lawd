@@ -13,7 +13,7 @@ static sel_err_t law_htp_read_uint32(
                 state, 
                 start,
                 PGC_AST_UINT32, 
-                LAW_HTP_STATUS, 
+                tag, 
                 10, 
                 pgc_buf_decode_dec, 
                 pgc_buf_decode_uint32);
@@ -26,7 +26,7 @@ sel_err_t law_htp_cap_status(
         const struct pgc_par *arg)
 {
         return pgc_lang_readterm(
-                stk, buf, state, arg, LAW_HTP_METHOD, law_htp_read_uint32);
+                stk, buf, state, arg, LAW_HTP_STATUS, law_htp_read_uint32);
 }
 
 sel_err_t law_htp_cap_method(

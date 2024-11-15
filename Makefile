@@ -179,7 +179,11 @@ build/lawd/http_server.o: source/lawd/http/server.c \
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # webd.h
-build/lawd/webd.o : source/lawd/webd.c includes
+build/lawd/webd.o: source/lawd/webd.c includes
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# websock.h 
+build/lawd/websock.o: source/lawd/websock.c includes 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # static lib
@@ -199,7 +203,8 @@ lib/liblawd.a : \
 	build/lawd/http_headers.o \
 	build/lawd/time.o \
 	build/lawd/log.o \
-	build/lawd/webd.o
+	build/lawd/webd.o \
+	build/lawd/websock.o
 	ar -crs $@ $^
 
 bin/echo : tests/lawd/echo.c \

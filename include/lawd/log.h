@@ -26,7 +26,7 @@ sel_err_t law_log_error(
         const char *message);
 
 /**
- * [datetime] [ip-address] pid action "message"
+ * [datetime] [ip-address] pid "action" "message"
  */
 sel_err_t law_log_error_ip(
         FILE *stream,

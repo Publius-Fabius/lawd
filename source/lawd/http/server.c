@@ -40,6 +40,7 @@ sel_err_t law_hts_read_head(
 
 const char *law_hts_status_str(const int status_code)
 {
+        SEL_ASSERT(status_code > 0);
         switch(status_code) {
 
                 /* Informational 1xx */
@@ -91,7 +92,7 @@ const char *law_hts_status_str(const int status_code)
                 case 504: return "Gateway Timeout";
                 case 505: return "HTTP Version Not Supported";
 
-                default: return "Unknown HTTP Error";
+                default: return "Unknown Status Code";
         }
 }
 
@@ -129,6 +130,7 @@ sel_err_t law_hts_begin_body(struct law_hts_req *req)
 struct law_hts_cfg law_hts_sanity()
 {
         struct law_hts_cfg cfg;
+        memset(&cfg, 0, sizeof(struct law_hts_cfg));
         cfg.in_length           = 0x2000;
         cfg.in_guard            = 0x1000;
         cfg.out_length          = 0x2000;
@@ -138,9 +140,6 @@ struct law_hts_cfg law_hts_sanity()
         cfg.heap_length         = 0xF000;
         cfg.heap_guard          = 0x1000;
         cfg.security            = LAW_HTC_UNSECURED;
-        cfg.pkey                = NULL;
-        cfg.cert                = NULL;
-        cfg.callback            = NULL;
         return cfg;
 }
 

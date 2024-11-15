@@ -30,7 +30,7 @@ enum law_err_type {
         LAW_ERR_WNTW    = -1702,                /** Wants to Write */
         LAW_ERR_WNTR    = -1703,                /** Wants to Read */
         LAW_ERR_TTL     = -1704,                /** Timeout Error */
-        LAW_ERR_WS      = -1705                 /** Request Error */
+        LAW_ERR_WS      = -1705                 /** Web Socket Error */
 };
 
 /** 
