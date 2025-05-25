@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/** User Data */
+/** Generic Data */
 struct law_data {
         union {
                 void *ptr;
@@ -12,7 +12,12 @@ struct law_data {
                 uint32_t u32;
                 int64_t i64;
                 int32_t i32;
-        } u;
+                float f32;
+                double f64;
+        };
 };
+
+typedef struct law_data law_args_t[8];
+
 
 #endif

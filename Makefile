@@ -90,6 +90,16 @@ bin/test_cqueue: tests/lawd/cqueue.c \
 grind_test_cqueue : bin/test_cqueue
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
+# priority.h 
+build/lawd/priority.o: source/lawd/priority.c include/lawd/priority.h includes
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_priority: tests/lawd/priority.c \
+	build/lawd/priority.o \
+	lib/libselc.a
+	$(CC) $(CFLAGS) -o $@ $^
+grind_test_priority : bin/test_priority
+	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
+
 # pqueue.h
 build/lawd/pqueue.o: source/lawd/pqueue.c include/lawd/pqueue.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<

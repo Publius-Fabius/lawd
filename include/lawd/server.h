@@ -3,6 +3,7 @@
 
 #include "lawd/error.h"
 #include "lawd/data.h"
+#include "lawd/events.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -72,6 +73,7 @@ struct law_srv_cfg {
         uid_t uid;                              /** System User */
         gid_t gid;                              /** System Group */
         int event_buffer;                       /** Event Buffer Size */
+        // refactor for server/worker event buffers.
         int workers;                            /** Number of Threads */
         law_srv_call_t init;                    /** Worker Init */
         law_srv_call_t tick;                    /** Tick Callback */
@@ -120,26 +122,27 @@ struct law_server *law_srv_server(struct law_worker *worker);
 /** Get the worker's active task. */
 struct law_task *law_srv_active(struct law_worker *worker);
 
-/** Add a file descriptor to the polling set. */
-sel_err_t law_srv_add(
-        struct law_worker *worker, 
-        const int fd,
-        struct law_event *event);
+/** IO Slot */
+struct law_slot {
+        int fd;
+        struct law_data data;
+        struct law_task *task;
+};
 
-/** Modify the events the file descriptor listens for. */
-sel_err_t law_srv_mod(
-        struct law_worker *worker, 
-        const int fd,
-        struct law_event *event);
+/** Configure events. */
+sel_err_t law_srv_ectl(
+        struct law_worker *worker,
+        struct law_slot *slot,
+        const enum law_ev_op op,
+        const enum law_ev_flag flags,
+        const enum law_ev_type type);
 
-/** Remove a file descriptor from the polling set. */
-sel_err_t law_srv_del(struct law_worker *worker, const int fd);
-
-/** 
- * Yield the current coroutine for timeout milliseconds or until a 
- * notification is received. 
- */
-sel_err_t law_srv_sleep(struct law_worker *worker, const int64_t timeout);
+/** Wait for events. */
+int law_srv_wait(
+        struct law_worker *worker,
+        const int64_t expiry,
+        struct law_ev *events,
+        const int max_events);
 
 /** Add the task to the notification queue. */
 sel_err_t law_srv_notify(struct law_task *task);
@@ -148,29 +151,6 @@ sel_err_t law_srv_notify(struct law_task *task);
 sel_err_t law_srv_spawn(
         struct law_server *server,
         law_srv_call_t callback,
-        struct law_data *data);
-
-/** IO Callback - One Argument */
-typedef sel_err_t (*law_srv_io1_t)(void *arg);
-
-/** IO Callback - Two Arguments */
-typedef sel_err_t (*law_srv_io2_t)(void *arg0, void *arg1);
-
-/** Wait for an IO action to succeed. */
-sel_err_t law_srv_await1(
-        struct law_worker *worker,
-        const int fd,
-        const int64_t timeout,
-        law_srv_io1_t callback,
-        void *arg);
-
-/** Wait for an IO action to succeed. */
-sel_err_t law_srv_await2(
-        struct law_worker *worker,
-        const int fd,
-        const int64_t timeout,
-        law_srv_io2_t callback,
-        void *arg0,
-        void *arg1);
+        struct law_data data);
 
 #endif
