@@ -1,7 +1,6 @@
 
 #include "lawd/log.h"
 #include "lawd/time.h"
-
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -34,28 +33,42 @@ char *law_log_ntop(
         return buf;
 }
 
-sel_err_t law_log_error(
-        FILE *errors,
+sel_err_t law_log_err(
+        FILE *stream,
         const char *action,
-        const char *message)
+        sel_err_t error,
+        const char *details,
+        const char *file,
+        const char *func,
+        const int line)
 {
         struct law_time_dt_buf buf;
         char *datetime = law_time_datetime(&buf);
         pid_t pid = getpid();
-        SEL_TEST(fprintf(errors, 
-                "[%s] %i %s \"%s\"\r\n", 
+        SEL_TEST(fprintf(stream,
+                "[%s] %i %s %s\r\n"
+                "    Details: %s\r\n"
+                "    Location: %s %s %i\r\n",
                 datetime,
                 pid,
                 action,
-                message) > 0);
-        return LAW_ERR_OK;
+                sel_strerror(error),
+                details,
+                file,
+                func,
+                line) > 0);
+        return error;
 }
 
-sel_err_t law_log_error_ip(
-        FILE *errors,
+sel_err_t law_log_nerr(
+        FILE *stream,
         const int socket,
         const char *action,
-        const char *message)
+        sel_err_t error,
+        const char *details,
+        const char *file,
+        const char *func,
+        const int line)
 {
         struct law_log_ip_buf ipbuf;
         char *ipaddr = law_log_ntop(socket, &ipbuf);
@@ -63,13 +76,18 @@ sel_err_t law_log_error_ip(
         struct law_time_dt_buf buf;
         char *datetime = law_time_datetime(&buf);
         const pid_t pid = getpid();
-        SEL_TEST(fprintf(errors, 
-               "[%s] [%s] %i \"%s\" \"%s\"\r\n", 
+        SEL_TEST(fprintf(stream,
+                "[%s] [%s] %i %s %s\r\n"
+                "    Details: %s\r\n"
+                "    Location: %s %s %i\r\n",
                 datetime,
                 ipaddr,
                 pid,
                 action,
-                message) > 0);
-        return LAW_ERR_OK;
+                sel_strerror(error),
+                details,
+                file,
+                func,
+                line) > 0);
+        return error;
 }
-

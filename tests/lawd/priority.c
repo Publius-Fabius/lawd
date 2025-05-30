@@ -43,21 +43,21 @@ void test_insert()
 
         for(int64_t x = 0; x < 100; ++x) {
                 SEL_ASSERT(law_pq_insert(
-                        pq, (struct law_data){ .i64 = deck[x] }, 0, NULL) == 1);
+                        pq, (struct law_data){ .i64 = deck[x] }, 0, NULL));
         }
         
         SEL_ASSERT(law_pq_size(pq) == 100);
 
         for(int64_t x = 0; x < 100; ++x) {
                 struct law_data pri;
-                SEL_ASSERT(law_pq_pop(pq, &pri, NULL, NULL) == 1);
+                SEL_ASSERT(law_pq_pop(pq, &pri, NULL, NULL));
                 SEL_ASSERT(pri.i64 == x);
                 printf("%li ", pri.i64);
         }
 
-        SEL_ASSERT(law_pq_pop(pq, NULL, NULL, NULL) == 0);
+        SEL_ASSERT(!law_pq_pop(pq, NULL, NULL, NULL));
         SEL_ASSERT(law_pq_size(pq) == 0);
-        
+
         free(deck);
         law_pq_destroy(pq);
 }

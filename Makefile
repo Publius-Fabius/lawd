@@ -80,16 +80,6 @@ bin/test_log: tests/lawd/log.c \
 	lib/libselc.a
 	$(CC) $(CFLAGS) -o $@ $^
 
-# cqueue.h
-build/lawd/cqueue.o: source/lawd/cqueue.c include/lawd/cqueue.h includes
-	$(CC) $(CFLAGS) -c -o $@ $<
-bin/test_cqueue: tests/lawd/cqueue.c \
-	build/lawd/cqueue.o \
-	lib/libselc.a
-	$(CC) $(CFLAGS) -o $@ $^
-grind_test_cqueue : bin/test_cqueue
-	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
-
 # priority.h 
 build/lawd/priority.o: source/lawd/priority.c include/lawd/priority.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -100,15 +90,9 @@ bin/test_priority: tests/lawd/priority.c \
 grind_test_priority : bin/test_priority
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
-# pqueue.h
-build/lawd/pqueue.o: source/lawd/pqueue.c include/lawd/pqueue.h includes
+# events.h 
+build/lawd/events.o: source/lawd/events.c include/lawd/events.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
-bin/test_pqueue: tests/lawd/pqueue.c \
-	build/lawd/pqueue.o \
-	lib/libselc.a
-	$(CC) $(CFLAGS) -o $@ $^
-grind_test_pqueue : bin/test_pqueue
-	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # server.h
 build/lawd/server.o : source/lawd/server.c include/lawd/server.h includes
@@ -119,10 +103,10 @@ bin/test_server : tests/lawd/server.c \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/safemem.o \
-	build/lawd/pqueue.o \
-	build/lawd/cqueue.o \
+	build/lawd/priority.o \
 	build/lawd/time.o \
 	build/lawd/log.o \
+	build/lawd/events.o \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^
 grind_test_server : bin/test_server
@@ -135,9 +119,10 @@ bin/ping: tests/lawd/ping.c \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/safemem.o \
-	build/lawd/pqueue.o \
+	build/lawd/priority.o \
 	build/lawd/time.o \
 	build/lawd/log.o \
+	build/lawd/events.o \
 	lib/libpgenc.a \
 	lib/libselc.a 
 	$(CC) $(CFLAGS) -o $@ $^ -lssl

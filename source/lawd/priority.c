@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <sys/types.h>
-#include <errno.h>
 
 struct law_pq_node {
         struct law_data priority;
@@ -86,25 +85,22 @@ static void law_pq_heapify_up(
         }
 }
 
-int law_pq_insert(
-        struct law_pq *q,
+struct law_pq *law_pq_insert(
+        struct law_pq *pq,
         struct law_data priority,
         const uint32_t version,
         void *value)
 {
-        assert(q && q->size <= q->capacity);
-        if(q->size == q->capacity) {
-                if(!law_pq_expand(q)) {
-                        errno = ENOMEM;
-                        return -1;
-                }
+        assert(pq && pq->size <= pq->capacity);
+        if(pq->size == pq->capacity) {
+                if(!law_pq_expand(pq)) return NULL;
         }
-        struct law_pq_node *node = q->nodes + q->size;
+        struct law_pq_node *node = pq->nodes + pq->size;
         node->priority = priority;
         node->version = version;
         node->value = value;
-        law_pq_heapify_up(q->compare, q->nodes, (ssize_t)q->size++);
-        return 1;
+        law_pq_heapify_up(pq->compare, pq->nodes, (ssize_t)pq->size++);
+        return pq;
 }
 
 static void law_pq_heapify_down(
@@ -146,34 +142,34 @@ static void law_pq_heapify_down(
         }
 }
 
-int law_pq_pop(
-        struct law_pq *q,
+struct law_pq *law_pq_pop(
+        struct law_pq *pq,
         struct law_data *priority,
         uint32_t *version,
         void **value)
 {
-        assert(q);
-        if(q->size == 0) return 0;
-        struct law_pq_node *ns = q->nodes;
+        assert(pq);
+        if(pq->size == 0) return NULL;
+        struct law_pq_node *ns = pq->nodes;
         if(priority) *priority = ns->priority;
         if(version) *version = ns->version;
         if(value) *value = ns->value;
-        law_pq_swap(ns, ns + --q->size);
-        law_pq_heapify_down(q->compare, ns, q->size, 0);
-        return 1;
+        law_pq_swap(ns, ns + --pq->size);
+        law_pq_heapify_down(pq->compare, ns, pq->size, 0);
+        return pq;
 }
 
-int law_pq_peek(
-        struct law_pq *queue,
+struct law_pq *law_pq_peek(
+        struct law_pq *pq,
         struct law_data *priority,
         uint32_t *version,
         void **value)
 {
-        assert(queue);
-        if(queue->size == 0) return 0;
-        struct law_pq_node *ns = queue->nodes;
+        assert(pq);
+        if(pq->size == 0) return NULL;
+        struct law_pq_node *ns = pq->nodes;
         if(priority) *priority = ns->priority;
         if(version) *version = ns->version;
         if(value) *value = ns->value;
-        return 1;
+        return pq;
 }

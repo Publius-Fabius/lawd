@@ -24,21 +24,21 @@ size_t law_pq_capacity(struct law_pq *queue);
 size_t law_pq_size(struct law_pq *queue);
 
 /** Add a value to the priority queue. */
-int law_pq_insert(
+struct law_pq *law_pq_insert(
         struct law_pq *queue,
         struct law_data priority,
         const uint32_t version,
         void *value);
 
-/** Pop minimum, 0 if empty. */
-int law_pq_pop(
+/** Pop minimum. */
+struct law_pq *law_pq_pop(
         struct law_pq *queue,
         struct law_data *priority,
         uint32_t *version,
         void **value);
 
-/** Peek minimum, 0 if empty. */
-int law_pq_peek(
+/** Peek minimum. */
+struct law_pq *law_pq_peek(
         struct law_pq *queue,
         struct law_data *priority,
         uint32_t *version,

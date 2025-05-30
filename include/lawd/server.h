@@ -18,43 +18,21 @@ enum law_srv_prot {
         LAW_SRV_NONE            = 5             /** No Protocol */
 };
 
-/** Event Options */
-enum law_srv_evopt {
-        LAW_SRV_POLLIN          = EPOLLIN,      /** Poll for Input */                       
-        LAW_SRV_POLLOUT         = EPOLLOUT,     /** Poll for Output */
-        LAW_SRV_POLLHUP         = EPOLLHUP,     /** Poll for a Hangup */
-        LAW_SRV_POLLERR         = EPOLLERR      /** Poll for an Error */
-};
-
-/** Server Signal */
-enum law_srv_sig {
-        LAW_SRV_SIGIO           = 1,            /** IO Signal */
-        LAW_SRV_SIGINT          = 2,            /** Notification Signal */
-        LAW_SRV_SIGTTL          = 3             /** Timeout Signal */
-};
-
 /** Network Server */
 struct law_server;
 
 /** Worker Thread */
 struct law_worker;
 
-/** Worker Task */
+/** Coroutine Task */
 struct law_task;
 
-/** IO Event */
-struct law_event {
-        unsigned int events;            /** Events to scan for. */
-        unsigned int revents;           /** Returned events. */
-        struct law_task *task;          /** The task the event belongs to. */
-};
-
-/** General Callback */
+/** Generalized Callback */
 typedef sel_err_t (*law_srv_call_t)(
         struct law_worker *worker,
         struct law_data data);
 
-/** Accept Callback */
+/** Socket Accept Callback */
 typedef sel_err_t (*law_srv_accept_t)(
         struct law_worker *worker, 
         int socket,
@@ -66,20 +44,26 @@ struct law_srv_cfg {
         uint16_t port;                          /** Socket Port */
         int backlog;                            /** Accept Backlog */
         int maxconns;                           /** Max Connections */
-        int worker_timeout;                     /** Worker Polling timeout */
         int server_timeout;                     /** Server Polling Timeout */
+        int worker_timeout;                     /** Worker Polling Timeout */
         size_t stack_length;                    /** Coroutine Stack */
         size_t stack_guard;                     /** Stack Guards */
         uid_t uid;                              /** System User */
         gid_t gid;                              /** System Group */
-        int event_buffer;                       /** Event Buffer Size */
-        // refactor for server/worker event buffers.
+        int server_events;                      /** Server Event Buffer */
+        int worker_events;                      /** Worker Event Buffer */
         int workers;                            /** Number of Threads */
         law_srv_call_t init;                    /** Worker Init */
         law_srv_call_t tick;                    /** Tick Callback */
         law_srv_accept_t accept;                /** Accept Callback */
         struct law_data data;                   /** User Data */
         FILE *errors;                           /** Error Log */
+};
+
+struct law_slot {
+        int fd;
+        struct law_task *task;
+        struct law_data data;
 };
 
 /** A sane and simple configuration. */
@@ -122,32 +106,55 @@ struct law_server *law_srv_server(struct law_worker *worker);
 /** Get the worker's active task. */
 struct law_task *law_srv_active(struct law_worker *worker);
 
-/** IO Slot */
-struct law_slot {
-        int fd;
-        struct law_data data;
-        struct law_task *task;
-};
-
-/** Configure events. */
+/** 
+ * Configure events for the file descriptor. 
+ * 
+ * RETURNS: LAW_ERR_OK (0) on success 
+ * 
+ * ERRORS: LAW_ERR_SYS 
+ */
 sel_err_t law_srv_ectl(
         struct law_worker *worker,
         struct law_slot *slot,
-        const enum law_ev_op op,
-        const enum law_ev_flag flags,
-        const enum law_ev_type type);
+        const int op,
+        const uint32_t flags,
+        const uint32_t slots);
 
-/** Wait for events. */
-int law_srv_wait(
+/** 
+ * Wait for events. 
+ * 
+ * RETURNS: The number of events received from 0 to max_events.
+ * 
+ * ERRORS:
+ *      LAW_ERR_TTL - Expiration already reached. 
+ *      LAW_ER_OOM - Timer queue out of memory. 
+ */
+int law_srv_ewait(
         struct law_worker *worker,
         const int64_t expiry,
         struct law_ev *events,
         const int max_events);
 
-/** Add the task to the notification queue. */
+/** 
+ * Add the task to the notification queue.  This function returns immediately.
+ * 
+ * RETURNS: LAW_ERR_OK (0) on success.
+ * 
+ * ERRORS:
+ *      LAW_ERR_WNTW - Unable to enqueue the worker thread (pipe full);
+ */
 sel_err_t law_srv_notify(struct law_task *task);
 
-/** Spawn a new coroutine. */
+/** 
+ * Spawn a new task.  This function returns immediately.
+ * 
+ * RETURNS: LAW_ERR_OK (0) on success.
+ * 
+ * ERRORS: 
+ *      LAW_ERR_OOM - Ran out of memory creating a new task.
+ *      LAW_ERR_WNTW - Unable to enqueue the worker's channel (pipe full).
+ *      LAW_ERR_OK - All OK
+ */
 sel_err_t law_srv_spawn(
         struct law_server *server,
         law_srv_call_t callback,

@@ -17,7 +17,4 @@ struct law_data {
         };
 };
 
-typedef struct law_data law_args_t[8];
-
-
 #endif

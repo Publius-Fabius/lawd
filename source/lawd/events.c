@@ -1,6 +1,8 @@
+
 #include "lawd/events.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #ifdef __linux__
 
@@ -16,7 +18,8 @@ struct law_evo *law_evo_create(const int max_events)
         if(!evo) return NULL;
         evo->nevents = evo->offset = 0;
         evo->max_events = max_events;
-        evo->events = malloc(max_events * sizeof(struct epoll_event));
+        evo->events = malloc(
+                (uint32_t)max_events * sizeof(struct epoll_event));
         if(!evo->events) {
                 free(evo);
                 return NULL;
@@ -41,8 +44,8 @@ void law_evo_destroy(struct law_evo *evo)
 int law_evo_ctl(
         struct law_evo *evo, 
         const int fd,
-        const enum law_ev_op op, 
-        const enum law_ev_flag flags, 
+        const int op, 
+        const uint32_t flags, 
         struct law_ev *event)
 {
         struct epoll_event ep_ev = {
@@ -63,16 +66,16 @@ int law_evo_wait(struct law_evo *evo, const int timeout)
         return nevents;
 }
 
-int law_evo_next(struct law_evo *evo, struct law_ev *event)
+struct law_evo *law_evo_next(struct law_evo *evo, struct law_ev *event)
 {
         assert(evo && evo->offset <= evo->nevents);
-        if(evo->offset == evo->nevents) return 0;
+        if(evo->offset == evo->nevents) return NULL;
         struct epoll_event *ep_ev = evo->events + evo->offset++;
         if(event) {
                 event->events = ep_ev->events;
                 event->data.u64 = ep_ev->data.u64;
         }
-        return 1;
+        return evo;
 }
 
 #elif   defined(__APPLE__) || \
