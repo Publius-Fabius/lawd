@@ -33,7 +33,7 @@ char *law_log_ntop(
         return buf;
 }
 
-sel_err_t law_log_err(
+sel_err_t law_log_error(
         FILE *stream,
         const char *action,
         sel_err_t error,
@@ -46,7 +46,7 @@ sel_err_t law_log_err(
         char *datetime = law_time_datetime(&buf);
         pid_t pid = getpid();
         SEL_TEST(fprintf(stream,
-                "[%s] %i %s %s\r\n"
+                "[%s] %i %s \"%s\"\r\n"
                 "    Details: %s\r\n"
                 "    Location: %s %s %i\r\n",
                 datetime,
@@ -60,7 +60,7 @@ sel_err_t law_log_err(
         return error;
 }
 
-sel_err_t law_log_nerr(
+sel_err_t law_log_net_error(
         FILE *stream,
         const int socket,
         const char *action,
@@ -77,7 +77,7 @@ sel_err_t law_log_nerr(
         char *datetime = law_time_datetime(&buf);
         const pid_t pid = getpid();
         SEL_TEST(fprintf(stream,
-                "[%s] [%s] %i %s %s\r\n"
+                "[%s] [%s] %i %s \"%s\"\r\n"
                 "    Details: %s\r\n"
                 "    Location: %s %s %i\r\n",
                 datetime,

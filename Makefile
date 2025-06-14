@@ -21,13 +21,16 @@ include/selc:
 include/pgenc: 
 	ln --force -s ../../pgenc/include/pgenc $@
 
+include/pubmt:
+	ln --force -s ../../pubmt/include/pubmt $@
+
 ../pgenc/bin/pgenc: 
 	make -C ../pgenc bin/pgenc 
 
 bin/pgenc: ../pgenc/bin/pgenc 
 	ln --force -s ../$< $@
 
-includes: include/selc include/pgenc 
+includes: include/selc include/pgenc include/pubmt
 
 # error.h
 build/lawd/error.o : source/lawd/error.c include/lawd/error.h includes
@@ -89,6 +92,10 @@ bin/test_priority: tests/lawd/priority.c \
 	$(CC) $(CFLAGS) -o $@ $^
 grind_test_priority : bin/test_priority
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
+
+# hashmap.h 
+build/lawd/hashmap.o: source/lawd/hashmap.c include/lawd/hashmap.h includes
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # events.h 
 build/lawd/events.o: source/lawd/events.c include/lawd/events.h includes
@@ -245,6 +252,7 @@ clean:
 	rm lib/libpgenc.a || true 
 	rm include/pgenc || true 
 	rm include/selc || true
+	rm include/pubmt || true
 	rm bin/pgenc || true
 	rm bin/ping || true 
 	rm bin/hello || true

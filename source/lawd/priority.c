@@ -85,7 +85,7 @@ static void law_pq_heapify_up(
         }
 }
 
-struct law_pq *law_pq_insert(
+bool law_pq_insert(
         struct law_pq *pq,
         struct law_data priority,
         const uint32_t version,
@@ -93,14 +93,14 @@ struct law_pq *law_pq_insert(
 {
         assert(pq && pq->size <= pq->capacity);
         if(pq->size == pq->capacity) {
-                if(!law_pq_expand(pq)) return NULL;
+                if(!law_pq_expand(pq)) return false;
         }
         struct law_pq_node *node = pq->nodes + pq->size;
         node->priority = priority;
         node->version = version;
         node->value = value;
         law_pq_heapify_up(pq->compare, pq->nodes, (ssize_t)pq->size++);
-        return pq;
+        return true;
 }
 
 static void law_pq_heapify_down(
@@ -142,34 +142,34 @@ static void law_pq_heapify_down(
         }
 }
 
-struct law_pq *law_pq_pop(
+bool law_pq_pop(
         struct law_pq *pq,
         struct law_data *priority,
         uint32_t *version,
         void **value)
 {
         assert(pq);
-        if(pq->size == 0) return NULL;
+        if(pq->size == 0) return false;
         struct law_pq_node *ns = pq->nodes;
         if(priority) *priority = ns->priority;
         if(version) *version = ns->version;
         if(value) *value = ns->value;
         law_pq_swap(ns, ns + --pq->size);
         law_pq_heapify_down(pq->compare, ns, pq->size, 0);
-        return pq;
+        return true;
 }
 
-struct law_pq *law_pq_peek(
+bool law_pq_peek(
         struct law_pq *pq,
         struct law_data *priority,
         uint32_t *version,
         void **value)
 {
         assert(pq);
-        if(pq->size == 0) return NULL;
+        if(pq->size == 0) return false;
         struct law_pq_node *ns = pq->nodes;
         if(priority) *priority = ns->priority;
         if(version) *version = ns->version;
         if(value) *value = ns->value;
-        return pq;
+        return true;
 }

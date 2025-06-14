@@ -13,7 +13,7 @@ struct law_worker *law_worker_create(
         struct law_server *s, const unsigned int id);
 void law_worker_destroy(struct law_worker *w);
 struct law_task *law_task_create(
-        law_srv_call_t callback,
+        law_callback_t callback,
         struct law_data data,
         const size_t stack_length,
         const size_t stack_guard);
@@ -61,23 +61,23 @@ void test_tasks()
 void test_srv_create()
 {
         SEL_INFO();
-        struct law_srv_cfg cfg = law_srv_sanity();
+        struct law_server_config cfg = law_server_sanity();
         cfg.workers = 8;
 
-        struct law_server *server = law_srv_create(&cfg);
+        struct law_server *server = law_server_create(&cfg);
         SEL_TEST(server);
-        law_srv_destroy(server);
+        law_server_destroy(server);
 }
 
 void test_worker()
 {
         SEL_INFO();
 
-        struct law_srv_cfg cfg = law_srv_sanity();
-        struct law_server *server = law_srv_create(&cfg);
+        struct law_server_config cfg = law_server_sanity();
+        struct law_server *server = law_server_create(&cfg);
         struct law_worker *worker = law_worker_create(server, 0);
         law_worker_destroy(worker);
-        law_srv_destroy(server);
+        law_server_destroy(server);
 }
 
 int main(int argc, char **args)

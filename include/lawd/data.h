@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /** Generic Data */
-struct law_data {
+typedef struct law_data {
         union {
                 void *ptr;
                 int fd;
@@ -15,6 +15,6 @@ struct law_data {
                 float f32;
                 double f64;
         };
-};
+} law_data_t;
 
 #endif

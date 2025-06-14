@@ -4,19 +4,19 @@
 #include "lawd/safemem.h"
 
 /** Coroutine Calling Environment */
-struct law_cor;                                 
+typedef struct law_cor law_cor_t;                                 
 
 /**
  * Allocate a new coroutine calling environment. 
  * @return A newly allocated environment.
  */
-extern struct law_cor *law_cor_create();
+extern law_cor_t *law_cor_create();
 
 /**
  * Free the coroutine calling environment.
  * @param env The environment to free.
  */
-extern void law_cor_destroy(struct law_cor *env);
+extern void law_cor_destroy(law_cor_t *env);
 
 /**
  * Coroutine callback.
@@ -25,9 +25,9 @@ extern void law_cor_destroy(struct law_cor *env);
  * @param state The user-defined state.
  * @return A status code.
  */
-typedef int (*law_cor_fun)(
-        struct law_cor *init_env, 
-        struct law_cor *cor_env,
+typedef int (*law_cor_fun_t)(
+        law_cor_t *init_env, 
+        law_cor_t *cor_env,
         void *state);
 
 /**
@@ -40,10 +40,10 @@ typedef int (*law_cor_fun)(
  * @return A status code.
  */
 extern int law_cor_call(
-        struct law_cor *init_env,
-        struct law_cor *cor_env,
+        law_cor_t *init_env,
+        law_cor_t *cor_env,
         struct law_smem *cor_stk,
-        law_cor_fun fun,
+        law_cor_fun_t fun,
         void *arg);
 
 /**
@@ -53,8 +53,8 @@ extern int law_cor_call(
  * @return A status code.
  */
 extern int law_cor_resume(
-        struct law_cor *init_env, 
-        struct law_cor *cor_env,
+        law_cor_t *init_env, 
+        law_cor_t *cor_env,
         const int signal);
 
 /**
@@ -64,8 +64,8 @@ extern int law_cor_resume(
  * @return A status code.
  */
 extern int law_cor_yield(
-        struct law_cor *init_env, 
-        struct law_cor *cor_env, 
+        law_cor_t *init_env, 
+        law_cor_t *cor_env, 
         const int signal);
 
 #endif

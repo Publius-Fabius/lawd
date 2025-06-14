@@ -38,7 +38,7 @@ sel_err_t law_ws_accept(
         struct law_hts_req *req,
         struct law_hts_head *head)
 {
-        FILE *errs = law_srv_errors(law_srv_server(worker));
+        FILE *errs = law_get_errors(law_get_server(worker));
         struct law_hthdrs *hdrs = head->headers;
         const int sock = req->conn.socket;
 
@@ -208,7 +208,7 @@ sel_err_t law_ws_read_head(
         const int64_t timeout,
         struct law_ws_head *head)
 {
-        FILE *errs = law_srv_errors(law_srv_server(worker));
+        FILE *errs = law_get_errors(law_get_server(worker));
         struct law_htconn *conn = &request->conn;
         const int sock = conn->socket;
         const char *action;

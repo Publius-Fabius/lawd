@@ -26,11 +26,14 @@ enum law_err_type {
         /* LAWD Errors */
 
         LAW_ERR_MODE    = -1700,                /** Bad Mode */
-        LAW_ERR_GAI     = -1701,                /** Address Lookup Error */
-        LAW_ERR_WNTW    = -1702,                /** Wants to Write */
-        LAW_ERR_WNTR    = -1703,                /** Wants to Read */
-        LAW_ERR_TTL     = -1704,                /** Timeout Error */
-        LAW_ERR_WS      = -1705                 /** Web Socket Error */
+        LAW_ERR_NOID    = -1701,                /** Id Does Not Exist */
+        LAW_ERR_GAI     = -1702,                /** Address Lookup Error */
+        LAW_ERR_WNTW    = -1703,                /** Wants to Write */
+        LAW_ERR_WNTR    = -1704,                /** Wants to Read */
+        LAW_ERR_TTL     = -1705,                /** Timeout Error */
+        LAW_ERR_LIM     = -1706,                /** Limit Reached */
+        LAW_ERR_WS      = -1707                 /** Web Socket Error */
+        
 };
 
 /** 

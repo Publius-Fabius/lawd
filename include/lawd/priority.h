@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "lawd/data.h"
 
 /** Priority Queue Comparison Function */
@@ -24,21 +25,21 @@ size_t law_pq_capacity(struct law_pq *queue);
 size_t law_pq_size(struct law_pq *queue);
 
 /** Add a value to the priority queue. */
-struct law_pq *law_pq_insert(
+bool law_pq_insert(
         struct law_pq *queue,
         struct law_data priority,
         const uint32_t version,
         void *value);
 
 /** Pop minimum. */
-struct law_pq *law_pq_pop(
+bool law_pq_pop(
         struct law_pq *queue,
         struct law_data *priority,
         uint32_t *version,
         void **value);
 
 /** Peek minimum. */
-struct law_pq *law_pq_peek(
+bool law_pq_peek(
         struct law_pq *queue,
         struct law_data *priority,
         uint32_t *version,

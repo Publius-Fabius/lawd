@@ -22,7 +22,7 @@ char *law_log_ntop(
  *     Error Details: details \r\n
  *     Location: file func line \r\n
  */
-sel_err_t law_log_err(
+sel_err_t law_log_error(
         FILE *stream,
         const char *action,
         sel_err_t error,
@@ -36,8 +36,8 @@ sel_err_t law_log_err(
  *     Error Details: error_details \r\n
  *     Location: file func line \r\n
  */
-#define LAW_LOG_ERR(STREAM, ACTION, ERROR, DETAILS)     \
-        law_log_err(                                    \
+#define LAW_LOG_ERROR(STREAM, ACTION, ERROR, DETAILS)   \
+        law_log_error(                                  \
                 STREAM,                                 \
                 ACTION,                                 \
                 ERROR,                                  \
@@ -51,7 +51,7 @@ sel_err_t law_log_err(
  *     Error Details: error_details \r\n
  *     Location: file func line \r\n
  */
-sel_err_t law_log_nerr(
+sel_err_t law_log_net_error(
         FILE *stream,
         const int socket,
         const char *action,
@@ -66,15 +66,15 @@ sel_err_t law_log_nerr(
  *     Error Details: error_details \r\n
  *     Location: file func line \r\n
  */
-#define LAW_LOG_NERR(STREAM, SOCKET, ACTION, ERROR, DETAILS) \
-        law_log_nerr(                                  \
-                STREAM,                                 \
-                SOCKET,                                 \
-                ACTION,                                 \
-                ERROR,                                  \
-                DETAILS,                                \
-                __FILE__,                               \
-                __func__,                               \
+#define LAW_LOG_NET_ERROR(STREAM, SOCKET, ACTION, ERROR, DETAILS) \
+                law_log_net_error(      \
+                STREAM,                 \
+                SOCKET,                 \
+                ACTION,                 \
+                ERROR,                  \
+                DETAILS,                \
+                __FILE__,               \
+                __func__,               \
                 __LINE__)
 
 #endif 

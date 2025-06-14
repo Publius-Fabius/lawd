@@ -18,7 +18,7 @@ sel_err_t ws_handler(
 
         struct law_hthdrs *hdrs = head->headers;
         const int sock = request->conn.socket;
-        FILE *errs = law_srv_errors(law_srv_server(worker));
+        FILE *errs = law_get_errors(law_get_server(worker));
         const char *key = law_hth_get(hdrs, "Sec-WebSocket-Key");
         if(!key) {
                 law_log_error_ip(
@@ -109,18 +109,18 @@ int main(int argc, char **args)
         ht_cfg.data.u.ptr = webd;
         struct law_hts_ctx *sctx = law_hts_create(&ht_cfg);
 
-        struct law_srv_cfg srv_cfg = law_srv_sanity();
+        struct law_server_setup srv_cfg = law_server_sanity();
         srv_cfg.data.u.ptr = sctx;
         srv_cfg.accept = law_hts_accept;
         srv_cfg.init = ws_init;
         srv_cfg.tick = ws_tick;
         
-        struct law_server *srv = law_srv_create(&srv_cfg);
+        struct law_server *srv = law_server_create(&srv_cfg);
         
-        if(law_srv_open(srv) == LAW_ERR_OK)
-                law_srv_start(srv);
+        if(law_open(srv) == LAW_ERR_OK)
+                law_start(srv);
 
-        law_srv_destroy(srv);
+        law_server_destroy(srv);
         law_hts_destroy(sctx);
         law_wd_destroy(webd);
 

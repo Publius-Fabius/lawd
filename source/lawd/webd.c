@@ -101,7 +101,7 @@ static sel_err_t law_wd_service_conn(
 {
         struct pgc_buf *out = req->conn.out;
         const int sock = req->conn.socket;
-        FILE *errs = law_srv_errors(law_srv_server(worker));
+        FILE *errs = law_get_errors(law_get_server(worker));
         law_wd_onerror_t onerror = webd->cfg.onerror;
         const size_t begin_content = pgc_buf_tell(out);
         
@@ -168,7 +168,7 @@ static void law_wd_accept_ssl(
                 return;
         }
         
-        FILE *errs = law_srv_errors(law_srv_server(worker));
+        FILE *errs = law_get_errors(law_get_server(worker));
         const int socket = req->conn.socket;
         sel_err_t err = law_htc_ssl_accept(&req->conn, req->ctx->ssl_ctx);
         if(err == LAW_ERR_SYS || err == LAW_ERR_SSL) {
@@ -205,7 +205,7 @@ static void law_wd_accept_sys(
 {
         struct law_htconn *conn = &req->conn;
         const int socket = conn->socket;
-        FILE *errs = law_srv_errors(law_srv_server(worker));
+        FILE *errs = law_get_errors(law_get_server(worker));
         struct law_event ev; 
         memset(&ev, 0, sizeof(struct law_event));
         const sel_err_t err = law_srv_add(worker, socket, &ev);

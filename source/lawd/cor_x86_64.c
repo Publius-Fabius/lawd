@@ -8,7 +8,7 @@ int law_cor_call_x86_64(
         struct law_cor *init_env,
         struct law_cor *cor_env,
         void *arg,
-        law_cor_fun fun);
+        law_cor_fun_t fun);
 
 int law_cor_swap_x86_64(
         struct law_cor *src,
@@ -29,7 +29,7 @@ int law_cor_call(
         struct law_cor *init_env,
         struct law_cor *cor_env,
         struct law_smem *cor_stk,
-        law_cor_fun fun,
+        law_cor_fun_t fun,
         void *arg)
 {
         void ** cor_env_ = (void**)cor_env;

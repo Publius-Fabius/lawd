@@ -22,3 +22,11 @@ int64_t law_time_millis()
         clock_gettime(CLOCK_REALTIME, &ts);
         return (int64_t)(ts.tv_sec) * 1000 + (int64_t)(ts.tv_nsec) / 1000000;
 }
+
+void law_time_sleep(law_time_t millis)
+{
+        struct timespec spec = { 
+                .tv_sec = 0,
+                .tv_nsec = 1000000 };
+        nanosleep(&spec, NULL);
+}
