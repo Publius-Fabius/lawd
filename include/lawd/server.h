@@ -8,7 +8,6 @@
 #include "lawd/id.h"
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/types.h>
 
 /** Network Protocol */
 enum law_network_protocol {
@@ -41,9 +40,6 @@ typedef struct law_server_config {
         int port;                               /** Socket Port */
         int backlog;                            /** Socket Listen Backlog */
 
-        uid_t uid;                              /** System User */
-        gid_t gid;                              /** System Group */
-
         int workers;                            /** Number of Worker Threads */
         int worker_tasks;                       /** Max Tasks per Worker */
 
@@ -63,24 +59,15 @@ typedef struct law_server_config {
 
 } law_server_config_t;
 
-/** IO Multiplexing Slot */
-typedef struct law_slot {
-        int fd;                                 /** File Descriptor */
-        law_id_t id;                            /** Task Identifier */
-} law_slot_t;
-
 /** 
  * A sane and simple configuration. 
  */
 law_server_config_t law_server_sanity();
 
 /** 
- * Create a new server. 
+ * Create a new server and return its pointer.
  * 
- * RETURNS:
- *      LAW_ERR_OOM - Ran out of memory allocating resources. 
- *      LAW_ERR_SYS - System call error. 
- *      LAW_ERR_OK - Success
+ * RETURNS: NULL when out of memory.
  */
 law_server_t *law_server_create(law_server_config_t *config);
 
@@ -106,49 +93,69 @@ law_id_t law_get_active(law_worker_t *worker);
 
 /** 
  * Create the server socket and set it to non-blocking mode.
+ * 
+ * RETURNS: LAW_ERR_OK, LAW_ERR_SYS (check errno)
  */
 sel_err_t law_create_socket(law_server_t *server, int *fd);
 
 /** 
  * Bind the server socket to its port.
+ * 
+ * RETURNS: LAW_ERR_OK, LAW_ERR_SYS (check errno)
  */
-sel_err_t law_bind(law_server_t *server);
+sel_err_t law_bind_socket(law_server_t *server);
 
 /** 
  * Start listening on the server socket. 
+ * 
+ * RETURNS: LAW_ERR_OK, LAW_ERR_SYS (check errno)
  */
 sel_err_t law_listen(law_server_t *server);
 
 /**
- * Open the server.
+ * This function initializes and sets up all the system resources needed for 
+ * server operation. 
+ * 
+ * RETURNS: LAW_ERR_OK, LAW_ERR_SYS (check errno)
  */
 sel_err_t law_open(law_server_t *server);
 
 /**
- * Close the server socket.
+ * Close the server, freeing all system resources acquired by law_open.
+ * 
+ * RETURNS: LAW_ERR_OK, LAW_ERR_SYS (check errno)
  */
 sel_err_t law_close(law_server_t *server);
 
 /** 
  * Start the server by entering its main loop. 
+ * 
+ * RETURNS: LAW_ERR_OK, LAW_ERR_MODE, LAW_ERR_SYS (check errno)
  */
 sel_err_t law_start(law_server_t *server);
 
 /**
  * Signal the server to (eventually) stop. 
+ * 
+ * RETURNS: LAW_ERR_OK, LAW_ERR_MODE
  */
 sel_err_t law_stop(law_server_t *server);
 
 /** 
+ * Set slot index to file descriptor.  Valid slot indices are 0 to 15.
+ * 
+ * RETURNS: LAW_ERR_OOB, LAW_ERR_OK
+ */
+sel_err_t law_set_slot(law_worker_t *worker, int index, int fd);
+
+/** 
  * Configure events for the I/O slot.  See lawd/events.h for more info.
  * 
- * RETURNS: 
- *      LAW_ERR_OK - Success 
- *      LAW_ERR_SYS - System Error
+ * RETURNS: LAW_ERR_OK, LAW_ERR_SYS
  */
 sel_err_t law_ectl(
         law_worker_t *worker,
-        law_slot_t *slot,
+        int slot,
         int op,
         law_event_bits_t flags,
         law_event_bits_t events);

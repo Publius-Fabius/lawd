@@ -15,6 +15,12 @@ lib/libselc.a: ../selc/lib/libselc.a
 lib/libpgenc.a: ../pgenc/lib/libpgenc.a  
 	ln --force -s ../$< $@
 
+../pubmt/libpubmt.a:
+	make -C ../pubmt libpubmt.a 
+
+lib/libpubmt.a: ../pubmt/libpubmt.a 
+	ln --force -s ../$< $@
+
 include/selc: 
 	ln --force -s ../../selc/include/selc $@
 
@@ -39,7 +45,7 @@ bin/test_error : tests/lawd/error.c \
 	build/lawd/error.o \
 	lib/libselc.a
 	$(CC) $(CFLAGS) -o $@ $^
-grind_test_error : bin/test_error
+run_test_error : bin/test_error
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # safemem.h 
@@ -50,7 +56,7 @@ bin/test_safemem : tests/lawd/safemem.c \
 	build/lawd/error.o \
 	lib/libselc.a
 	$(CC) $(CFLAGS) -o $@ $^
-grind_test_safemem : bin/test_safemem
+run_test_safemem : bin/test_safemem
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # coroutine.h 
@@ -64,15 +70,28 @@ bin/test_coroutine : tests/lawd/coroutine.c \
 	build/lawd/safemem.o \
 	lib/libselc.a
 	$(CC) $(CFLAGS) -o $@ $^
-grind_test_coroutine : bin/test_coroutine
+run_test_coroutine : bin/test_coroutine
 	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # time.h
 build/lawd/time.o: source/lawd/time.c include/lawd/time.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 bin/test_time: tests/lawd/time.c \
-	build/lawd/time.o
+	build/lawd/time.o \
+	lib/libpubmt.a 
 	$(CC) $(CFLAGS) -o $@ $^
+run_test_time : bin/test_time
+	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
+
+# table.h
+build/lawd/table.o: source/lawd/table.c include/lawd/table.h 
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_table: tests/lawd/table.c \
+	build/lawd/table.o \
+	lib/libpubmt.a 
+	$(CC) $(CFLAGS) -o $@ $^
+run_test_table : bin/test_table
+	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # log.h
 build/lawd/log.o: source/lawd/log.c include/lawd/log.h includes
@@ -83,22 +102,8 @@ bin/test_log: tests/lawd/log.c \
 	lib/libselc.a
 	$(CC) $(CFLAGS) -o $@ $^
 
-# priority.h 
-build/lawd/priority.o: source/lawd/priority.c include/lawd/priority.h includes
-	$(CC) $(CFLAGS) -c -o $@ $<
-bin/test_priority: tests/lawd/priority.c \
-	build/lawd/priority.o \
-	lib/libselc.a
-	$(CC) $(CFLAGS) -o $@ $^
-grind_test_priority : bin/test_priority
-	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
-
-# hashmap.h 
-build/lawd/hashmap.o: source/lawd/hashmap.c include/lawd/hashmap.h includes
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-# events.h 
-build/lawd/events.o: source/lawd/events.c include/lawd/events.h includes
+# event.h 
+build/lawd/event.o: source/lawd/event.c include/lawd/event.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # server.h
@@ -110,14 +115,15 @@ bin/test_server : tests/lawd/server.c \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/safemem.o \
-	build/lawd/priority.o \
+	build/lawd/table.o \
 	build/lawd/time.o \
 	build/lawd/log.o \
-	build/lawd/events.o \
-	lib/libselc.a 
+	build/lawd/event.o \
+	lib/libselc.a \
+	lib/libpubmt.a
 	$(CC) $(CFLAGS) -o $@ $^
-grind_test_server : bin/test_server
-	valgrind -q --error-exitcode=1 --leak-check=full $^ 1>/dev/null
+run_test_server : bin/test_server
+	valgrind -q --track-fds=yes --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # ping server 
 bin/ping: tests/lawd/ping.c \
@@ -126,12 +132,11 @@ bin/ping: tests/lawd/ping.c \
 	build/lawd/cor_x86_64.o \
 	build/lawd/cor_x86_64s.o \
 	build/lawd/safemem.o \
-	build/lawd/priority.o \
+	build/lawd/table.o \
 	build/lawd/time.o \
-	build/lawd/log.o \
-	build/lawd/events.o \
-	lib/libpgenc.a \
-	lib/libselc.a 
+	build/lawd/event.o \
+	lib/libselc.a \
+	lib/libpubmt.a
 	$(CC) $(CFLAGS) -o $@ $^ -lssl
 
 # uri.h 
@@ -223,12 +228,12 @@ bin/test_websock: tests/lawd/websock.c \
 
 # test suite
 suite: \
-	grind_test_error \
-	grind_test_safemem \
-	grind_test_coroutine \
+	run_test_error \
+	run_test_safemem \
+	run_test_coroutine \
 	grind_test_cqueue \
 	grind_test_pqueue \
-	grind_test_server 
+	run_test_server 
 
 tmp/key.pem:
 	openssl genrsa -out $@
@@ -250,6 +255,7 @@ clean:
 	rm lib/liblawd.a || true
 	rm lib/libselc.a || true 
 	rm lib/libpgenc.a || true 
+	rm lib/libpubmt.a || true
 	rm include/pgenc || true 
 	rm include/selc || true
 	rm include/pubmt || true

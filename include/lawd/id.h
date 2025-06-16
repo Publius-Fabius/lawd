@@ -5,6 +5,6 @@
 
 typedef uint64_t law_id_t;
 
-typedef uint32_t law_version_t;
+typedef uint32_t law_vers_t;
 
 #endif

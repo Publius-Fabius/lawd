@@ -1,5 +1,5 @@
 
-#include "lawd/events.h"
+#include "lawd/event.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -16,7 +16,7 @@ law_evo_t *law_evo_create(int max_events)
 {
         assert(max_events > 0);
 
-        struct law_evo *evo = malloc(sizeof(struct law_evo));
+        struct law_evo *evo = calloc(1, sizeof(struct law_evo));
         if(!evo) return NULL;
 
         evo->nevents = 0;
@@ -24,8 +24,7 @@ law_evo_t *law_evo_create(int max_events)
         evo->max_events = max_events;
         evo->fd = -1;
 
-        evo->events = malloc(
-                (uint32_t)max_events * sizeof(struct epoll_event));
+        evo->events = calloc((size_t)max_events, sizeof(struct epoll_event));
         if(!evo->events) {
                 free(evo);
                 return NULL;
@@ -71,9 +70,22 @@ int law_evo_ctl(
 
 int law_evo_wait(struct law_evo *evo, int timeout)
 {
-        evo->nevents = evo->offset = 0;
-        return epoll_wait(
-                evo->fd, evo->events, evo->max_events, timeout);
+        evo->nevents = 0;
+        evo->offset = 0;
+
+        const int error = epoll_wait(
+                evo->fd, 
+                evo->events, 
+                evo->max_events, 
+                timeout);
+        
+        if(error == -1) {
+                return -1;
+        }
+
+        evo->nevents = error;
+
+        return 0;
 }
 
 bool law_evo_next(struct law_evo *evo, struct law_event *event)

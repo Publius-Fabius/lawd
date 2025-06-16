@@ -62,9 +62,14 @@ bool law_table_next(pmt_hm_iter_t *iter, law_id_t *id, void **pointer);
 bool law_table_is_next(pmt_hm_iter_t *iter);
 
 /**
- * Get table's size.
+ * Get the table's current size.
  */
 size_t law_table_size(law_table_t *table);
+
+/**
+ * Get the table's capacity.
+ */
+size_t law_table_capacity(law_table_t *table);
 
 /**
  * Get table's max size before a resize.

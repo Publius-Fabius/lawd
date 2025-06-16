@@ -39,6 +39,6 @@ enum law_err_type {
 /** 
  * Initialize LAWD errors. 
  */
-void law_err_init();
+void law_error_init();
 
 #endif

@@ -19,7 +19,7 @@ int main(int argc, char **args)
 {
         SEL_INFO();
         sel_init();
-        law_err_init();
+        law_error_init();
         test_builtins();
         test_customs() ;
 }

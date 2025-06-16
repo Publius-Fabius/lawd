@@ -1,5 +1,6 @@
 
 #include "lawd/table.h"
+#include <stdlib.h>
 
 /** Hash Table Node */
 typedef struct law_table_node {
@@ -117,9 +118,9 @@ void *law_table_node_get_next(void *node)
         return ((law_table_node_t*)node)->next;
 }
 
-void law_table_node_set_next(void *node)
+void law_table_node_set_next(void *node, void *next)
 {
-        ((law_table_node_t*)node)->next = node;
+        ((law_table_node_t*)node)->next = next;
 }
 
 void *law_table_node_get_key(void *node)
@@ -151,7 +152,7 @@ pmt_hm_iface_t law_table_iface = {
 
 law_table_t *law_table_create(const size_t capacity)
 {
-        law_table_t *map = malloc(sizeof(law_table_t));
+        law_table_t *map = calloc(1, sizeof(law_table_t));
         if(!map) return NULL;
 
         if(!pmt_hm_create(&law_table_iface, map, capacity)) {
@@ -168,7 +169,7 @@ void law_table_destroy(law_table_t *map)
         pmt_hm_entries(&law_table_iface, map, &iter);
 
         void *node;
-        while(pmt_hm_next(&law_table_iface, map, &node)) {
+        while(pmt_hm_next(&law_table_iface, &iter, (void**)&node)) {
                 free(node);
         }
 
@@ -178,7 +179,11 @@ void law_table_destroy(law_table_t *map)
 
 int law_table_insert(law_table_t *table, law_id_t id, void *pointer)
 {
-        law_table_node_t *node = malloc(sizeof(law_table_node_t));
+        law_table_node_t *node = calloc(1, sizeof(law_table_node_t));
+
+        node->id = id;
+        node->pointer = pointer;
+        node->next = NULL;
         
         const int result = pmt_hm_insert(&law_table_iface, table, node);
 
@@ -203,6 +208,7 @@ void *law_table_remove(law_table_t *table, law_id_t id)
         if(!node) return false;
 
         void *pointer = node->pointer;
+
         free(node);
         
         return pointer;
@@ -216,7 +222,7 @@ void law_table_entries(law_table_t *table, pmt_hm_iter_t *iter)
 bool law_table_next(pmt_hm_iter_t *iter, law_id_t *id, void **pointer)
 {
         law_table_node_t *node;
-        if(!pmt_hm_next(&law_table_iface, iter, &node))
+        if(!pmt_hm_next(&law_table_iface, iter, (void**)&node))
                 return false;
 
         if(id) *id = node->id;
@@ -233,6 +239,11 @@ bool law_table_is_next(pmt_hm_iter_t *iter)
 size_t law_table_size(law_table_t *table)
 {
         return table->size;
+}
+
+size_t law_table_capacity(law_table_t *table)
+{
+        return table->capacity;
 }
 
 size_t law_table_max_size(law_table_t *table)

@@ -5,8 +5,9 @@ enum pgc_err law_err_pgenc;
 
 int law_err_SSL;
 
-void law_err_init()
+void law_error_init()
 {
+        sel_init();
         SEL_BIND(LAW_ERR_OK, "All Ok");
         SEL_BIND(LAW_ERR_SYS, "System Call");
         SEL_BIND(LAW_ERR_OOB, "Index Out of Bounds");

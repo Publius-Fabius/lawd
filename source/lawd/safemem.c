@@ -14,7 +14,7 @@ struct law_smem {
 
 struct law_smem *law_smem_create(const size_t length, const size_t guard)
 {
-        struct law_smem *mem = malloc(sizeof(struct law_smem));
+        struct law_smem *mem = calloc(1, sizeof(struct law_smem));
 
         if(!mem) {
                 return NULL;

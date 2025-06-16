@@ -77,7 +77,7 @@ sel_err_t echo_handler(
 
 int main(int argc, char **args) 
 {
-        law_err_init();
+        law_error_init();
 
         struct law_wd_cfg wd_cfg = law_wd_sanity();
         wd_cfg.handler = echo_handler;
