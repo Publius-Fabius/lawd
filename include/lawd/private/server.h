@@ -36,7 +36,7 @@ typedef struct law_task_pool {
 
 typedef struct law_slot {
         law_id_t id;
-        int index;
+        int8_t data;
 } law_slot_t;
 
 #endif

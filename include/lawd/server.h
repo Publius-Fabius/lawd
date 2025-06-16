@@ -149,16 +149,17 @@ sel_err_t law_stop(law_server_t *server);
 sel_err_t law_set_slot(law_worker_t *worker, int index, int fd);
 
 /** 
- * Configure events for the I/O slot.  See lawd/events.h for more info.
+ * Configure events for the file descriptor.  See lawd/events.h for more info.
  * 
  * RETURNS: LAW_ERR_OK, LAW_ERR_SYS
  */
 sel_err_t law_ectl(
         law_worker_t *worker,
-        int slot,
+        int fd,
         int op,
         law_event_bits_t flags,
-        law_event_bits_t events);
+        law_event_bits_t events,
+        int8_t data);
 
 /** 
  * Wait for events.  Event data is a pointer to the event slot registered 

@@ -15,7 +15,7 @@ enum law_htc_sec {
 /** HTTP Connection */
 struct law_htconn {
         int socket;
-        enum law_htc_sec security;
+        int security;
         SSL *ssl;
         struct pgc_buf *in, *out;
 };
@@ -25,6 +25,7 @@ sel_err_t law_htc_close(struct law_htconn *conn);
 
 /** 
  * Read data into the connection's input buffer.
+ * 
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_OOB - Buffer is full.
@@ -37,6 +38,7 @@ sel_err_t law_htc_read_data(struct law_htconn *conn);
 
 /**
  * Ensure nbytes of input are available in the input buffer.
+ * 
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_OOB - Buffer out of bounds.
@@ -49,6 +51,7 @@ sel_err_t law_htc_ensure_input(struct law_htconn *conn, const size_t nbytes);
 
 /**
  * Ensure nbytes of available space in the output buffer.
+ * 
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_OOB - Buffer out of bounds.
@@ -61,6 +64,7 @@ sel_err_t law_htc_ensure_output(struct law_htconn *conn, const size_t nbytes);
 
 /**
  * Write data from the output buffer.
+ * 
  * LAW_ERR_WNTR - Wants to read
  * LAW_ERR_WNTW - Wants to write
  * LAW_ERR_SYS - System error
@@ -71,6 +75,7 @@ sel_err_t law_htc_write_data(struct law_htconn *conn);
 
 /**
  * Flush the request's output buffer.
+ * 
  * LAW_ERR_WNTR - Wants to read
  * LAW_ERR_WNTW - Wants to write
  * LAW_ERR_SYS - System error
@@ -90,6 +95,7 @@ sel_err_t law_htc_read_head(
 /**
  * Accept an SSL connection.  This function should only be called once even 
  * if it returns LAW_ERR_WNTR or LAW_ERR_WNTW.
+ * 
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_SSL - SSL error.
@@ -102,6 +108,7 @@ sel_err_t law_htc_ssl_accept(struct law_htconn *conn, SSL_CTX *ssl_ctx);
  * Shutdown an SSL connection and free its resources.  This function should
  * be called multiple times until it returns LAW_ERR_OK in order to fully
  * complete the two way SSL shutdown procedure.
+ * 
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_SSL - SSL error.

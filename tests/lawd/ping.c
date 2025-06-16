@@ -32,9 +32,7 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
                 "Content-Type: text/plain\r\n"
                 "Content-Length: 4\r\n\r\n");
 
-        law_set_slot(w, 0, sock);
-
-        if(law_ectl(w, 0, LAW_EV_ADD, 0, LAW_EV_R) != LAW_ERR_OK) {
+        if(law_ectl(w, sock, LAW_EV_ADD, 0, LAW_EV_R, -5) != LAW_ERR_OK) {
                 perror("");
                 SEL_HALT();
         }
@@ -43,10 +41,9 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
 
         SEL_TEST(law_ewait(w, 3000, evs, 5) > 0);
         SEL_TEST(evs[0].events & LAW_EV_R);
-        SEL_TEST(evs[0].data.fd == sock);
+        SEL_TEST(evs[0].data.i8 == -5);
 
-        puts("coming back");
-        SEL_TEST(law_ectl(w, 0, LAW_EV_DEL, 0, 0) == LAW_ERR_OK);
+        SEL_TEST(law_ectl(w, sock, LAW_EV_DEL, 0, 0, 0) == LAW_ERR_OK);
         SEL_TEST(law_ewait(w, 1000, evs, 3) > 0);
         SEL_TEST(evs[0].events & LAW_EV_TIM);
 

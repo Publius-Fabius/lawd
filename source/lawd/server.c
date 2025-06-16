@@ -108,13 +108,12 @@ struct law_server {
 
 uint64_t law_slot_encode(law_slot_t *slot) 
 {
-        SEL_ASSERT(0 <= slot->index && slot->index <= 15);
         SEL_ASSERT(0 <= slot->id && slot->id < LAW_ID_MODULO);
 
         uint64_t result = 0;
         uint8_t *bytes = (uint8_t*)&result;
 
-        bytes[0] = (uint8_t)slot->index;
+        bytes[0] = (uint8_t)slot->data;
 
         uint64_t id = slot->id;
 
@@ -129,7 +128,7 @@ uint64_t law_slot_encode(law_slot_t *slot)
 void law_slot_decode(uint64_t encoding, law_slot_t *slot)
 {
         uint8_t *bytes = (uint8_t*)&encoding;
-        slot->index = bytes[0];
+        slot->data = (int8_t)bytes[0];
 
         uint64_t id = 0;
         uint64_t pow = 1;
@@ -765,17 +764,18 @@ sel_err_t law_set_slot(law_worker_t *worker, int index, int fd)
 
 sel_err_t law_ectl(
         law_worker_t *worker,
-        int slot_index,
+        int fd,
         int op,
         law_event_bits_t flags,
-        law_event_bits_t events)
+        law_event_bits_t events,
+        int8_t data)
 {
         SEL_ASSERT(worker);
 
         law_task_t *task = worker->active;
         law_slot_t slot = { 
                 .id = task->id, 
-                .index = slot_index };
+                .data = data };
 
         law_event_t event = { 
                 .events = events, 
@@ -783,7 +783,7 @@ sel_err_t law_ectl(
 
         return law_evo_ctl(
                 worker->evo, 
-                task->slots[slot_index], 
+                fd, 
                 op, 
                 flags, 
                 &event);
@@ -982,7 +982,6 @@ static bool law_worker_tick(law_worker_t *worker)
         }
        
         SEL_TEST(law_evo_wait(worker->evo, (int)timeout) >= 0);
-        puts("waking");
 
         law_vers_t version = 0;
         law_id_t id = 0;
@@ -1020,7 +1019,7 @@ static bool law_worker_tick(law_worker_t *worker)
                         slot.id);
                 if(!task) continue;
 
-                event.data.fd = task->slots[slot.index];
+                event.data.i8 = slot.data;
                 
                 (void)law_task_push_event(task, &event);
                 (void)law_ready_set_push(ready, task);

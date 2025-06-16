@@ -27,8 +27,8 @@ struct law_hts_cfg {
         size_t heap_length;                     /** Heap Length */
         size_t heap_guard;                      /** Heap Guard */
         law_hts_call_t callback;                /** Request Callback */
-        struct law_data data;                   /** User Data */
-        enum law_htc_sec security;              /** Security Mode */
+        law_data_t data;                        /** User Data */
+        int security;                           /** Security Mode */
         const char *cert;                       /** Certificate File */
         const char *pkey;                       /** Private Key File */
 };
@@ -57,6 +57,7 @@ struct law_hts_head {
 /**
  * Accept an SSL connection.  This function should only be called once even 
  * if it returns LAW_ERR_WNTR or LAW_ERR_WNTW.
+ * 
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_SSL - SSL error.
@@ -69,6 +70,7 @@ sel_err_t law_hts_ssl_accept(struct law_hts_req *request);
  * Shutdown an SSL connection and free its resources.  This function should
  * be called multiple times until it returns LAW_ERR_OK in order to fully
  * complete the two way SSL shutdown procedure.
+ * 
  * LAW_ERR_WNTR - Wants to read.
  * LAW_ERR_WNTW - Wants to write.
  * LAW_ERR_SSL - SSL error.
@@ -82,6 +84,7 @@ sel_err_t law_hts_ssl_free(struct law_hts_req *request);
 
 /**
  * Read the server-side request's message head.
+ * 
  * LAW_ERR_WNTR - Wants to read. 
  * LAW_ERR_WNTW - Wants to write. 
  * LAW_ERR_OOB - Buffer is full. 
