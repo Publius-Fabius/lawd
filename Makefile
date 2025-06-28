@@ -137,11 +137,11 @@ bin/ping: tests/lawd/ping.c \
 	build/lawd/event.o \
 	lib/libselc.a \
 	lib/libpubmt.a
-	$(CC) $(CFLAGS) -o $@ $^ -lssl
+	$(CC) $(CFLAGS) -o $@ $^ 
 
 # uri.h 
 tmp/lawd/uri_parsers.c : grammar/uri.g bin/pgenc
-	bin/pgenc -g $< -s $@ -d law_uri_par
+	bin/pgenc $@ law_uri_par $< 
 build/lawd/uri.o : source/lawd/uri.c include/lawd/uri.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
 build/lawd/uri_parsers.o : tmp/lawd/uri_parsers.c 
@@ -151,39 +151,89 @@ bin/test_uri : tests/lawd/uri.c \
 	build/lawd/uri.o \
 	lib/libselc.a \
 	lib/libpgenc.a 
-	$(CC) $(CFLAGS) -o $@ $^ -lssl
+	$(CC) $(CFLAGS) -o $@ $^
 
-# http/parse.h
-build/lawd/http_parse.o: source/lawd/http/parse.c \
-	include/lawd/http/parse.h includes
+# http_parser.h
+build/lawd/http_parser.o: source/lawd/http_parser.c \
+	include/lawd/http_parser.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
-tmp/lawd/http_parsers.c : grammar/http.g bin/pgenc
-	bin/pgenc -g $< -s $@ -d law_htp
+tmp/lawd/http_parser_gen.c : grammar/http.g bin/pgenc
+	bin/pgenc $@ law_htp $< 
 build/lawd/http_parsers.o: tmp/lawd/http_parsers.c
 	$(CC) $(CFLAGS) -c -o $@ $<
-bin/test_http_parse: tests/lawd/http/parse.c \
-	build/lawd/http_parse.o \
+bin/test_http_parser: tests/lawd/http_parser.c \
+	build/lawd/http_parser.o \
 	build/lawd/http_parsers.o \
 	build/lawd/uri_parsers.o \
 	build/lawd/uri.o \
 	lib/libselc.a \
 	lib/libpgenc.a 
-	$(CC) $(CFLAGS) -o $@ $^ -lssl
+	$(CC) $(CFLAGS) -o $@ $^
 
-# http/headers.h
-build/lawd/http_headers.o: source/lawd/http/headers.c \
-	include/lawd/http/headers.h 
+# http_headers.h
+build/lawd/http_headers.o: source/lawd/http_headers.c \
+	include/lawd/http_headers.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# http/conn.h
-build/lawd/http_conn.o: source/lawd/http/conn.c \
-	include/lawd/http/conn.h 
+# buffer.h
+build/lawd/buffer.o : source/lawd/buffer.c include/lawd/buffer.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_buffer: tests/lawd/buffer.c \
+	build/lawd/buffer.o \
+	lib/libselc.a \
+	lib/libpgenc.a 
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
+run_test_buffer : bin/test_buffer
+	valgrind -q --track-fds=yes --error-exitcode=1 --leak-check=full $^ 1>/dev/null
+
+# http_connection.h
+build/lawd/http_conn.o: source/lawd/http_conn.c \
+	include/lawd/http_conn.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_http_conn: tests/lawd/http_conn.c \
+	build/lawd/http_conn.o \
+	build/lawd/buffer.o \
+	build/lawd/server.o \
+	build/lawd/error.o \
+	build/lawd/cor_x86_64.o \
+	build/lawd/cor_x86_64s.o \
+	build/lawd/safemem.o \
+	build/lawd/table.o \
+	build/lawd/time.o \
+	build/lawd/event.o \
+	lib/libselc.a \
+	lib/libpgenc.a \
+	lib/libpubmt.a
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
+run_test_http_conn : bin/test_http_conn
+	valgrind -q --track-fds=yes --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # http/server.h
-build/lawd/http_server.o: source/lawd/http/server.c \
-	include/lawd/http/server.h 
+build/lawd/http_server.o: source/lawd/http_server.c \
+	include/lawd/http_server.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
+bin/test_http_server: tests/lawd/http_server.c \
+	build/lawd/http_server.o \
+	build/lawd/http_conn.o \
+	build/lawd/uri.o \
+	build/lawd/uri_parsers.o \
+	build/lawd/http_parser.o \
+	build/lawd/http_parsers.o \
+	build/lawd/buffer.o \
+	build/lawd/server.o \
+	build/lawd/error.o \
+	build/lawd/cor_x86_64.o \
+	build/lawd/cor_x86_64s.o \
+	build/lawd/safemem.o \
+	build/lawd/table.o \
+	build/lawd/time.o \
+	build/lawd/event.o \
+	lib/libselc.a \
+	lib/libpgenc.a \
+	lib/libpubmt.a
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
+run_test_http_server : bin/test_http_server
+	valgrind -q --track-fds=yes --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # webd.h
 build/lawd/webd.o: source/lawd/webd.c includes

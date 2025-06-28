@@ -426,6 +426,11 @@ void test_uri_parse()
         SEL_ASSERT(!strcmp(result.query, "query"));
 }
 
+void *stack_alloc(const size_t nbytes, void *state)
+{
+        return pgc_stk_push((struct pgc_stk*)state, nbytes); 
+}
+
 void test_parse_query()
 {
         SEL_INFO();
@@ -449,7 +454,7 @@ void test_parse_query()
 
         struct law_uri_query_iter *iter = law_uri_query_elems(
                 query,
-                (void*(*)(void*,const size_t))pgc_stk_push,
+                stack_alloc,
                 &heap);
         SEL_ASSERT(iter);
         
@@ -500,7 +505,7 @@ void test_parse_path()
         const char *segment;
         struct law_uri_path_iter *iter = law_uri_path_segs(
                 path,
-                (void*(*)(void*,const size_t))pgc_stk_push,
+                stack_alloc,
                 &heap);
 
         SEL_ASSERT(law_uri_path_next(iter, &segment));

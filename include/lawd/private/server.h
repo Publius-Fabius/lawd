@@ -2,6 +2,7 @@
 #define LAWD_PRIVATE_SERVER_H
 
 #include "lawd/data.h"
+#include "lawd/id.h"
 #include <pthread.h>
 
 typedef struct law_task law_task_t;

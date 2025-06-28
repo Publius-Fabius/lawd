@@ -33,7 +33,7 @@ char *law_log_ntop(
         return buf;
 }
 
-sel_err_t law_log_error(
+sel_err_t law_log_err(
         FILE *stream,
         const char *action,
         sel_err_t error,
@@ -44,13 +44,11 @@ sel_err_t law_log_error(
 {
         struct law_time_dt_buf buf;
         char *datetime = law_time_datetime(&buf);
-        pid_t pid = getpid();
         SEL_TEST(fprintf(stream,
-                "[%s] %i %s \"%s\"\r\n"
+                "[%s] %s \"%s\"\r\n"
                 "    Details: %s\r\n"
                 "    Location: %s %s %i\r\n",
                 datetime,
-                pid,
                 action,
                 sel_strerror(error),
                 details,
@@ -60,7 +58,7 @@ sel_err_t law_log_error(
         return error;
 }
 
-sel_err_t law_log_net_error(
+sel_err_t law_log_net_err(
         FILE *stream,
         const int socket,
         const char *action,
@@ -75,14 +73,12 @@ sel_err_t law_log_net_error(
         if(!ipaddr) ipaddr = "NTOP_ERROR";
         struct law_time_dt_buf buf;
         char *datetime = law_time_datetime(&buf);
-        const pid_t pid = getpid();
         SEL_TEST(fprintf(stream,
-                "[%s] [%s] %i %s \"%s\"\r\n"
+                "[%s] [%s] %s \"%s\"\r\n"
                 "    Details: %s\r\n"
                 "    Location: %s %s %i\r\n",
                 datetime,
                 ipaddr,
-                pid,
                 action,
                 sel_strerror(error),
                 details,

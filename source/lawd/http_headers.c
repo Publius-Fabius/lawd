@@ -1,29 +1,12 @@
 
 #include "lawd/error.h"
-#include "lawd/http/headers.h"
+#include "lawd/http_headers.h"
+#include "lawd/private/http_headers.h"
+#include "pgenc/ast.h"
 #include <string.h>
 
-struct law_hthdrs {
-        struct pgc_ast_lst *list;
-};
-
-struct law_hthdrs_iter {
-        struct pgc_ast_lst *list;
-};
-
-struct law_hthdrs *law_hth_from_ast(
-        struct pgc_ast_lst *list,
-        void *(alloc)(void*, const size_t),
-        void *st)
-{
-        struct law_hthdrs *hdrs = alloc(st, sizeof(struct law_hthdrs));
-        if(!hdrs) return NULL;
-        hdrs->list = list;
-        return hdrs;
-}
-
 const char *law_hth_get(
-        struct law_hthdrs *hdrs,
+        law_htheaders_t *hdrs,
         const char *field_name)
 {
         for(struct pgc_ast_lst *l = hdrs->list; l; l = l->nxt) {
@@ -34,19 +17,19 @@ const char *law_hth_get(
         return NULL;
 }
 
-struct law_hthdrs_iter *law_hth_elems(
-        struct law_hthdrs *hdrs,
-        void *(alloc)(void*, const size_t),
+law_hth_iter_t *law_hth_elems(
+        struct law_htheaders *hdrs,
+        void *(alloc)(const size_t, void*),
         void *st)
 {
-        struct law_hthdrs_iter *iter = alloc(st, sizeof(struct law_hthdrs_iter));
+        law_hth_iter_t *iter = alloc(sizeof(law_hth_iter_t), st);
         if(!iter) return NULL;
         iter->list = hdrs->list;
         return iter;
 }
 
-struct law_hthdrs_iter *law_hth_next(
-        struct law_hthdrs_iter *iter,
+law_hth_iter_t *law_hth_next(
+        law_hth_iter_t *iter,
         const char **field_name,
         const char **field_value)
 {

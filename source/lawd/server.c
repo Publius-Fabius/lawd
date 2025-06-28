@@ -20,29 +20,29 @@
 #include <string.h>
 #include <math.h>
 
-law_server_config_t law_server_sanity()
+law_server_cfg_t law_server_sanity()
 {
-        law_server_config_t cfg;
+        law_server_cfg_t cfg;
 
         cfg.protocol            = LAW_PROTOCOL_TCP;
         cfg.port                = 80;
-        cfg.backlog             = 10;
+        cfg.backlog             = 8;
 
         cfg.workers             = 1;  
-        cfg.worker_tasks        = 8;
+        cfg.worker_tasks        = 4;
 
         cfg.worker_timeout      = 5000;
-        cfg.server_timeout      = 10000;
+        cfg.server_timeout      = 5000;
 
         cfg.stack               = 0x100000;
-        cfg.guards               = 0x1000;
+        cfg.guards              = 0x1000;
         
         cfg.server_events       = 32;
         cfg.worker_events       = 32;
         
-        cfg.init                = NULL;
-        cfg.tick                = NULL;
-        cfg.accept              = NULL;
+        cfg.on_error            = NULL;
+        cfg.on_accept           = NULL;
+
         cfg.data                = (law_data_t){ .u64 = 0 };
         
         return cfg;
@@ -80,6 +80,7 @@ enum law_msg_type {                             /** Message Type */
 };
 
 struct law_worker {
+        int id;
         int mode;
         law_msg_queue_t messages;
         law_task_queue_t incoming;
@@ -93,7 +94,7 @@ struct law_worker {
 };
 
 struct law_server {
-        law_server_config_t cfg;
+        law_server_cfg_t cfg;
         int socket;
         int mode;
         law_id_t seed;
@@ -106,6 +107,15 @@ struct law_server {
 
 #define LAW_ID_MODULO 0x100000000000000
 
+/** 
+ * A slot consists of a 56bit task id along with 8bits of user data.  The id
+ * portion is 7 bytes encoded in base_256 in "little endian" order like so:
+ * 
+ *      (uint8_t[8]) { user_data, id_low_bits, ..., id_high_bits }
+ * 
+ * Despite slots being represented with little endian ordering, this function 
+ * along with law_slot_decode should be fully portable between architectures. 
+ */
 uint64_t law_slot_encode(law_slot_t *slot) 
 {
         SEL_ASSERT(0 <= slot->id && slot->id < LAW_ID_MODULO);
@@ -125,8 +135,13 @@ uint64_t law_slot_encode(law_slot_t *slot)
         return result;
 }
 
+/**
+ * Decode the encoded slot.
+ */
 void law_slot_decode(uint64_t encoding, law_slot_t *slot)
 {
+        SEL_ASSERT(slot);
+
         uint8_t *bytes = (uint8_t*)&encoding;
         slot->data = (int8_t)bytes[0];
 
@@ -141,31 +156,42 @@ void law_slot_decode(uint64_t encoding, law_slot_t *slot)
         slot->id = id;
 }
 
-/** Open a non-blocking pipe. */
-static int law_pipe_open(int fds[2])
-{
-        if(pipe(fds) == -1) return LAW_ERR_SYS;
-
-        int flags;
-
-        if((flags = fcntl(fds[0], F_GETFL)) == -1) 
-                return LAW_ERR_SYS;
-        if(fcntl(fds[0], F_SETFL, O_NONBLOCK | flags) == -1)
-                return LAW_ERR_SYS;
-
-        if((flags = fcntl(fds[1], F_GETFL)) == -1)
-                return LAW_ERR_SYS;
-        if(fcntl(fds[1], F_SETFL, O_NONBLOCK | flags) == -1)
-                return LAW_ERR_SYS;
-        
-        return LAW_ERR_OK;
-}
-
 /** Close a pipe. */
 static void law_pipe_close(int fds[2])
 {
         close(fds[0]);
         close(fds[1]);
+}
+
+/** Open a non-blocking pipe. */
+static int law_pipe_open(int fds[2])
+{
+        if(pipe(fds) == -1) 
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "pipe");
+
+        int flags;
+
+        if((flags = fcntl(fds[0], F_GETFL)) == -1) {
+                law_pipe_close(fds);
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "fcntl");
+        }
+
+        if(fcntl(fds[0], F_SETFL, O_NONBLOCK | flags) == -1) {
+                law_pipe_close(fds);
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "fcntl");
+        }
+
+        if((flags = fcntl(fds[1], F_GETFL)) == -1) {
+                law_pipe_close(fds);
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "fcntl");
+        }
+
+        if(fcntl(fds[1], F_SETFL, O_NONBLOCK | flags) == -1) {
+                law_pipe_close(fds);
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "fcntl");
+        }
+        
+        return LAW_ERR_OK;
 }
 
 /** Write nbytes of addr to the pipe. */
@@ -175,7 +201,7 @@ static sel_err_t law_pipe_write(int fd, void *addr, size_t nbytes)
 
         if(result == -1) {
                 if(errno == EWOULDBLOCK || errno == EAGAIN) 
-                        return LAW_ERR_WNTW;
+                        return LAW_ERR_WANTW;
                 else 
                         return LAW_ERR_SYS;
         } 
@@ -192,7 +218,7 @@ static sel_err_t law_pipe_read(int fd, void *addr, size_t nbytes)
 
         if(result == -1) {
                 if(errno == EWOULDBLOCK || errno == EAGAIN)
-                        return LAW_ERR_WNTR;
+                        return LAW_ERR_WANTR;
                 else 
                         return LAW_ERR_SYS;
         } 
@@ -371,7 +397,7 @@ law_task_t *law_task_pool_pop(law_task_pool_t *pool)
 }
 
 /** Initialize the task pool */
-law_task_pool_t *law_task_pool_create(law_server_config_t *cfg)
+law_task_pool_t *law_task_pool_create(law_server_cfg_t *cfg)
 {
         law_task_pool_t *pool = calloc(1, sizeof(law_task_pool_t));
         if(!pool) return NULL;
@@ -500,6 +526,7 @@ law_worker_t *law_worker_create(law_server_t *server, const int id)
         law_worker_t *w = calloc(1, sizeof(law_worker_t));
         if(!w) return NULL;
 
+        w->id = id;
         w->server = server;
         w->mode = LAW_MODE_CREATED;
         law_ready_set_init(&w->ready);
@@ -553,13 +580,17 @@ law_server_t *law_get_server(law_worker_t *worker)
 sel_err_t law_worker_open(law_worker_t *worker) 
 {
         if(law_task_queue_open(&worker->incoming) == LAW_ERR_SYS)
-                return LAW_ERR_SYS;
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "law_task_queue_open");
 
-        if(law_msg_queue_open(&worker->messages) == LAW_ERR_SYS) 
+        if(law_msg_queue_open(&worker->messages) == LAW_ERR_SYS) {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_msg_queue_open");
                 goto CLOSE_INCOMING;
-
-        if(law_evo_open(worker->evo) == -1) 
+        }
+                
+        if(law_evo_open(worker->evo) == -1) {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_evo_open");
                 goto CLOSE_MESSAGES;
+        }
 
         law_event_t event = { .events = LAW_EV_R, .data = { .ptr = NULL } };
 
@@ -569,15 +600,21 @@ sel_err_t law_worker_open(law_worker_t *worker)
                 LAW_EV_ADD, 
                 0, 
                 &event) == -1) 
+        {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_evo_ctl");
                 goto CLOSE_EVO;
-        
+        }
+
         if(law_evo_ctl(
                 worker->evo,
                 worker->messages.fds[0],
                 LAW_EV_ADD,
                 0,
                 &event) == -1)
+        {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_evo_ctl");
                 goto CLOSE_EVO;
+        }
         
         return LAW_ERR_OK;
 
@@ -602,7 +639,7 @@ void law_worker_close(law_worker_t *worker)
 
 /* law_server ############################################################ */
 
-law_server_t *law_server_create(law_server_config_t *cfg)
+law_server_t *law_server_create(law_server_cfg_t *cfg)
 {
         SEL_ASSERT(cfg);
 
@@ -632,18 +669,18 @@ law_server_t *law_server_create(law_server_config_t *cfg)
         if(!(s->pool = law_task_pool_create(cfg)))
                 goto FREE_EVO;
 
-        int n_threads = 0;
+        int n = 0;
 
-        for(; n_threads < nthreads; ++n_threads) {
-                s->workers[n_threads] = law_worker_create(s, n_threads);
-                if(!s->workers[n_threads]) goto FREE_WORKERS;
+        for(; n < nthreads; ++n) {
+                s->workers[n] = law_worker_create(s, n);
+                if(!s->workers[n]) goto FREE_WORKERS;
         }
 
         return s;
 
         FREE_WORKERS:
 
-        for(int m = 0; m < n_threads; ++m) {
+        for(int m = 0; m < n; ++m) {
                 law_worker_destroy(s->workers[m]);
         }
 
@@ -677,12 +714,17 @@ void law_server_destroy(law_server_t *srv)
         free(srv);
 }
 
-law_id_t law_get_active(law_worker_t *worker)
+law_id_t law_get_active_id(law_worker_t *worker)
 {
         return worker->active->id;
 }
 
-int law_get_socket(law_server_t *server)
+int law_get_worker_id(law_worker_t *worker) 
+{
+        return worker->id;
+}
+
+int law_get_server_socket(law_server_t *server)
 {
         return server->socket;
 }
@@ -700,6 +742,121 @@ law_id_t law_server_genid(law_server_t *server)
         return id;
 }
 
+sel_err_t law_create_socket(law_server_t *server, int *socket_fd)
+{
+        SEL_ASSERT(server);
+
+        int     domain = -1, 
+                type = -1;
+        
+        switch(server->cfg.protocol) {
+                case LAW_PROTOCOL_TCP: 
+                        domain = AF_INET;
+                        type = SOCK_STREAM;
+                        break;
+                case LAW_PROTOCOL_TCP6:
+                        domain = AF_INET6;
+                        type = SOCK_STREAM;
+                        break;
+                case LAW_PROTOCOL_UDP:
+                        domain = AF_INET;
+                        type = SOCK_DGRAM;
+                        break;
+                case LAW_PROTOCOL_UDP6:
+                        domain = AF_INET6;
+                        type = SOCK_DGRAM;
+                        break;
+                default: 
+                        SEL_HALT();
+        }
+
+        const int fd = socket(domain, type, 0);
+        if(fd == -1) 
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "socket");
+        
+        const int flags = fcntl(fd, F_GETFL);
+        if(flags == -1) {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "fcntl");
+                goto FAILURE;
+        }
+        if(fcntl(fd, F_SETFL, O_NONBLOCK | flags) == -1) {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "fcntl");
+                goto FAILURE;
+        }
+        
+        server->socket = fd;
+        if(socket_fd) *socket_fd = fd;
+
+        return SEL_ERR_OK;
+
+        FAILURE:
+
+        close(fd);
+
+        return SEL_ERR_SYS;
+}
+
+sel_err_t law_bind_socket(law_server_t *server)
+{
+        SEL_ASSERT(server);
+
+        struct sockaddr_storage addr;
+        memset(&addr, 0, sizeof(struct sockaddr_storage));
+        struct sockaddr_in *in = NULL;
+        struct sockaddr_in6 *in6 = NULL;
+        unsigned int addrlen;
+
+        switch(server->cfg.protocol) {
+                case LAW_PROTOCOL_TCP: 
+                        addrlen = sizeof(struct sockaddr_in);
+                        in = (struct sockaddr_in*)&addr;
+                        in->sin_family = AF_INET;
+                        in->sin_port = htons((uint16_t)server->cfg.port);
+                        in->sin_addr.s_addr = htonl(INADDR_ANY);
+                        break;
+                case LAW_PROTOCOL_TCP6:
+                        addrlen = sizeof(struct sockaddr_in6);
+                        in6 = (struct sockaddr_in6*)&addr;
+                        in6->sin6_family = AF_INET6;
+                        in6->sin6_port = htons((uint16_t)server->cfg.port);
+                        in6->sin6_addr = in6addr_any;
+                        break;
+                case LAW_PROTOCOL_UDP:
+                        addrlen = sizeof(struct sockaddr_in);
+                        in = (struct sockaddr_in*)&addr;
+                        in->sin_family = AF_INET;
+                        in->sin_port = htons((uint16_t)server->cfg.port);
+                        in->sin_addr.s_addr = htonl(INADDR_ANY);
+                        break;
+                case LAW_PROTOCOL_UDP6:
+                        addrlen = sizeof(struct sockaddr_in6);
+                        in6 = (struct sockaddr_in6*)&addr;
+                        in6->sin6_family = AF_INET6;
+                        in6->sin6_port = htons((uint16_t)server->cfg.port);
+                        in6->sin6_addr = in6addr_any;
+                        break;
+                default: 
+                        SEL_HALT();
+        }
+
+        SEL_ASSERT(server->socket);
+
+        if(bind(server->socket, (struct sockaddr*)&addr, addrlen) == -1) 
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "bind");
+        
+        return LAW_ERR_OK;
+}
+
+sel_err_t law_listen(law_server_t *server)
+{
+        SEL_ASSERT(server && server->socket);
+
+        if(listen(server->socket, server->cfg.backlog) == -1) 
+        return LAW_ERR_PUSH(LAW_ERR_SYS, "listen");
+        
+        return SEL_ERR_OK;
+}
+
 sel_err_t law_open(law_server_t *server)
 {
         SEL_ASSERT(server && server->socket);
@@ -707,8 +864,27 @@ sel_err_t law_open(law_server_t *server)
         sel_err_t error = LAW_ERR_SYS;
         int n = 0; 
 
-        if(law_evo_open(server->evo) == -1) 
-                return LAW_ERR_SYS;
+        int socket = 0;
+
+        law_err_clear();
+
+        if(law_create_socket(server, &socket) == LAW_ERR_SYS) 
+                return LAW_ERR_PUSH(LAW_ERR_SYS, "law_create_socket");
+
+        if(law_bind_socket(server) == LAW_ERR_SYS) {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_bind_socket");
+                goto CLOSE_SOCKET;
+        }
+
+        if(law_listen(server) == LAW_ERR_SYS) {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_listen");
+                goto CLOSE_SOCKET;
+        }
+
+        if(law_evo_open(server->evo) == -1) {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_evo_open");
+                goto CLOSE_SOCKET;
+        }
 
         law_event_t event = { .events = LAW_EV_R, .data = { .ptr = NULL } };
         if(law_evo_ctl(
@@ -717,7 +893,11 @@ sel_err_t law_open(law_server_t *server)
                 LAW_EV_ADD, 
                 0, 
                 &event) == -1) 
+        {
+                LAW_ERR_PUSH(LAW_ERR_SYS, "law_evo_ctl");
                 goto CLOSE_EVO;
+        }
+                
 
         law_worker_t **ws = server->workers;
 
@@ -737,6 +917,9 @@ sel_err_t law_open(law_server_t *server)
         CLOSE_EVO:
         law_evo_close(server->evo);
 
+        CLOSE_SOCKET:
+        close(socket);
+
         return error;
 }
 
@@ -749,17 +932,6 @@ sel_err_t law_close(law_server_t *server)
         law_evo_close(server->evo);
         close(server->socket);
         return SEL_ERR_OK;
-}
-
-sel_err_t law_set_slot(law_worker_t *worker, int index, int fd) 
-{
-        if(!(0 <= index && index <= 15)) {
-                return LAW_ERR_OOB;
-        }
-
-        worker->active->slots[index] = fd;
-
-        return LAW_ERR_OK;
 }
 
 sel_err_t law_ectl(
@@ -781,12 +953,17 @@ sel_err_t law_ectl(
                 .events = events, 
                 .data = { .u64 = law_slot_encode(&slot) } };
 
-        return law_evo_ctl(
+        if(law_evo_ctl(
                 worker->evo, 
                 fd, 
                 op, 
                 flags, 
-                &event);
+                &event) == -1) 
+        {
+                return LAW_ERR_SYS;
+        }
+
+        return LAW_ERR_OK;
 }
 
 int law_ewait(
@@ -824,9 +1001,10 @@ static bool law_spawn_dispatch_once(law_server_t *s, law_task_t *task)
         int num_workers = s->cfg.workers;
         law_worker_t **ws = s->workers;
 
-        for(int x = 0; x < num_workers; ++x) {
-                switch(law_task_queue_push(&ws[x]->incoming, task)) {
-                        case LAW_ERR_WNTW: 
+        for(size_t x = 0; x < num_workers; ++x) {
+                const size_t index = (x + task->id) % (size_t)num_workers;
+                switch(law_task_queue_push(&ws[index]->incoming, task)) {
+                        case LAW_ERR_WANTW: 
                                 continue; 
                         case LAW_ERR_OK: 
                                 return true;
@@ -880,7 +1058,7 @@ sel_err_t law_spawn(
 
         law_task_t *task = law_task_pool_pop(server->pool);
 
-        if(!task) return LAW_ERR_LIM;
+        if(!task) return LAW_ERR_LIMIT;
 
         law_task_setup(task, law_server_genid(server), callback, data);
 
@@ -888,7 +1066,7 @@ sel_err_t law_spawn(
 
         for(int x = 0; x < server->cfg.workers; ++x) {
                 switch(law_task_queue_push(&ws[x]->incoming, task)) {
-                        case LAW_ERR_WNTW: 
+                        case LAW_ERR_WANTW: 
                                 continue; 
                         case LAW_ERR_OK: 
                                 return LAW_ERR_OK;
@@ -897,7 +1075,64 @@ sel_err_t law_spawn(
                 }
         }
 
-        return LAW_ERR_WNTW;
+        return LAW_ERR_WANTW;
+}
+
+static sel_err_t law_sync_wait(
+        law_worker_t *w,
+        law_time_t timeout,
+        int fd,
+        law_event_bits_t evs)
+{
+        sel_err_t err = -1;
+
+        if((err = law_ectl(w, fd, LAW_EV_MOD, 0, evs, 0)) != LAW_ERR_OK) {
+                return LAW_ERR_PUSH(err, "law_ectl");
+        }
+
+        if((err = law_ewait(w, timeout, NULL, 0)) == LAW_ERR_TIMEOUT) {
+                return LAW_ERR_PUSH(err, "law_ewait");
+        } 
+
+        return LAW_ERR_OK;
+}
+
+sel_err_t law_sync(
+        law_worker_t *worker,
+        law_time_t timeout,
+        sel_err_t (*callback)(int fd, void *state),
+        int fd,
+        void *state)
+{
+        law_err_clear();
+
+        sel_err_t err = -1;
+
+        const law_time_t expiry = law_time_millis() + timeout;
+       
+        while((err = callback(fd, state)) != LAW_ERR_OK) {
+
+                const law_time_t now = law_time_millis();
+                if(expiry <= now) {
+                        return LAW_ERR_TIMEOUT;
+                } 
+                
+                timeout = expiry - now;
+
+                if(err == LAW_ERR_WANTW) {
+                        err = law_sync_wait(worker, timeout, fd, LAW_EV_W);
+                } else if(err == LAW_ERR_WANTR) {
+                        err = law_sync_wait(worker, timeout, fd, LAW_EV_R);
+                } else {
+                        return err;
+                }
+
+                if(err != LAW_ERR_OK) {
+                        return err;
+                }
+        }
+
+        return LAW_ERR_OK;
 }
 
 static int law_task_cor_trampoline(
@@ -1082,9 +1317,6 @@ static bool law_worker_tick(law_worker_t *worker)
 
 static void law_worker_run(law_worker_t *w)
 {
-        if(w->server->cfg.init(w, w->server->cfg.data) != LAW_ERR_OK) 
-                return;
-
         while(law_worker_tick(w));
 }
 
@@ -1097,24 +1329,33 @@ static void *law_worker_thread(void *state)
 static sel_err_t law_accept_callback(law_worker_t *worker, law_data_t data)
 {
         law_server_t *s = worker->server;
-        return s->cfg.accept(worker, data.fd, s->cfg.data);
+        return s->cfg.on_accept(worker, data.fd, s->cfg.data);
 }
 
 static sel_err_t law_server_accept(law_server_t *server) 
 {
         while(!law_task_pool_is_empty(server->pool)) {
 
-                int fd = accept(server->socket, NULL, NULL);
+                law_err_clear();
+
+                const int fd = accept(server->socket, NULL, NULL);
+
                 if(fd == -1) {
-                        if(errno == EAGAIN || errno == EWOULDBLOCK) 
+                        if(errno == EAGAIN || errno == EWOULDBLOCK) {
                                 return LAW_ERR_OK;
+                        }
+                        LAW_ERR_PUSH(LAW_ERR_SYS, "accept");
+                        server->cfg.on_error(
+                                server,
+                                LAW_ERR_SYS,
+                                server->cfg.data);
                         switch(errno) {
                                 case EHOSTUNREACH:
                                 case ENETUNREACH:
                                 case ENONET:
                                 case EHOSTDOWN:
                                 case ENETDOWN:
-                                        goto WAIT;
+                                        return LAW_ERR_OK;
                                 case EPROTO:
                                 case ENOPROTOOPT:
                                 case ECONNABORTED:
@@ -1125,18 +1366,18 @@ static sel_err_t law_server_accept(law_server_t *server)
                         }
                 }
 
-                int flags = fcntl(fd, F_GETFL);
+                const int flags = fcntl(fd, F_GETFL);
                 if(flags == -1) {
                         close(fd);
-                        return SEL_ERR_SYS;       
+                        return LAW_ERR_PUSH(SEL_ERR_SYS, "fcntl");
                 }
 
                 if(fcntl(fd, F_SETFL, O_NONBLOCK | flags) == -1) {
                         close(fd);
-                        return SEL_ERR_SYS;  
+                        return LAW_ERR_PUSH(SEL_ERR_SYS, "fcntl"); 
                 }
 
-                law_task_t *task = law_task_pool_pop(server->pool);
+                law_task_t *const task = law_task_pool_pop(server->pool);
                 SEL_TEST(task);
 
                 law_data_t data = { .fd = fd };
@@ -1147,10 +1388,8 @@ static sel_err_t law_server_accept(law_server_t *server)
                         law_accept_callback, 
                         data);
                 
-                (void)law_spawn_dispatch(server, task);
+                law_spawn_dispatch(server, task);
         }
-
-        WAIT:
 
         law_time_sleep(75);
 
@@ -1214,11 +1453,13 @@ static sel_err_t law_server_run_threads(law_server_t *s)
 
 sel_err_t law_start(law_server_t *s)
 {
+        law_err_clear();
+
         if(s->mode != LAW_MODE_CREATED) 
                 return LAW_ERR_MODE;
 
         s->mode = LAW_MODE_RUNNING;
-
+        
         sel_err_t error = law_server_run_threads(s);
         
         s->mode = LAW_MODE_STOPPED;
@@ -1234,114 +1475,4 @@ sel_err_t law_stop(law_server_t *s)
         s->mode = LAW_MODE_STOPPING;
         
         return LAW_ERR_OK;
-}
-
-/* networking ############################################################ */
-
-sel_err_t law_create_socket(law_server_t *server, int *socket_fd)
-{
-        SEL_ASSERT(server);
-
-        int     domain = -1, 
-                type = -1;
-        
-        switch(server->cfg.protocol) {
-                case LAW_PROTOCOL_TCP: 
-                        domain = AF_INET;
-                        type = SOCK_STREAM;
-                        break;
-                case LAW_PROTOCOL_TCP6:
-                        domain = AF_INET6;
-                        type = SOCK_STREAM;
-                        break;
-                case LAW_PROTOCOL_UDP:
-                        domain = AF_INET;
-                        type = SOCK_DGRAM;
-                        break;
-                case LAW_PROTOCOL_UDP6:
-                        domain = AF_INET6;
-                        type = SOCK_DGRAM;
-                        break;
-                default: 
-                        SEL_HALT();
-        }
-
-        const int fd = socket(domain, type, 0);
-        if(fd == -1) return LAW_ERR_SYS;
-        
-        const int flags = fcntl(fd, F_GETFL);
-        if(flags == -1) goto FAILURE;
-        if(fcntl(fd, F_SETFL, O_NONBLOCK | flags) == -1) goto FAILURE;
-        
-        server->socket = fd;
-        if(socket_fd) *socket_fd = fd;
-
-        return SEL_ERR_OK;
-
-        FAILURE:
-
-        close(fd);
-
-        return SEL_ERR_SYS;
-}
-
-sel_err_t law_bind_socket(law_server_t *server)
-{
-        SEL_ASSERT(server);
-
-        struct sockaddr_storage addr;
-        memset(&addr, 0, sizeof(struct sockaddr_storage));
-        struct sockaddr_in *in = NULL;
-        struct sockaddr_in6 *in6 = NULL;
-        unsigned int addrlen;
-
-        switch(server->cfg.protocol) {
-                case LAW_PROTOCOL_TCP: 
-                        addrlen = sizeof(struct sockaddr_in);
-                        in = (struct sockaddr_in*)&addr;
-                        in->sin_family = AF_INET;
-                        in->sin_port = htons((uint16_t)server->cfg.port);
-                        in->sin_addr.s_addr = htonl(INADDR_ANY);
-                        break;
-                case LAW_PROTOCOL_TCP6:
-                        addrlen = sizeof(struct sockaddr_in6);
-                        in6 = (struct sockaddr_in6*)&addr;
-                        in6->sin6_family = AF_INET6;
-                        in6->sin6_port = htons((uint16_t)server->cfg.port);
-                        in6->sin6_addr = in6addr_any;
-                        break;
-                case LAW_PROTOCOL_UDP:
-                        addrlen = sizeof(struct sockaddr_in);
-                        in = (struct sockaddr_in*)&addr;
-                        in->sin_family = AF_INET;
-                        in->sin_port = htons((uint16_t)server->cfg.port);
-                        in->sin_addr.s_addr = htonl(INADDR_ANY);
-                        break;
-                case LAW_PROTOCOL_UDP6:
-                        addrlen = sizeof(struct sockaddr_in6);
-                        in6 = (struct sockaddr_in6*)&addr;
-                        in6->sin6_family = AF_INET6;
-                        in6->sin6_port = htons((uint16_t)server->cfg.port);
-                        in6->sin6_addr = in6addr_any;
-                        break;
-                default: 
-                        SEL_HALT();
-        }
-
-        SEL_ASSERT(server->socket);
-
-        if(bind(server->socket, (struct sockaddr*)&addr, addrlen) == -1) 
-                return SEL_ERR_SYS; 
-        
-        return SEL_ERR_OK;
-}
-
-sel_err_t law_listen(law_server_t *server)
-{
-        SEL_ASSERT(server && server->socket);
-
-        if(listen(server->socket, server->cfg.backlog) < 0) 
-                return SEL_ERR_SYS;
-        
-        return SEL_ERR_OK;
 }

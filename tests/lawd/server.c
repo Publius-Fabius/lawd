@@ -64,7 +64,7 @@ void test_msg_queue_pop()
         assert(law_msg_queue_pop(&queue, &msg) == LAW_ERR_OK);
         assert(msg.type == 3 && msg.data.u64 == 3);
 
-        assert(law_msg_queue_pop(&queue, &msg) == LAW_ERR_WNTR);
+        assert(law_msg_queue_pop(&queue, &msg) == LAW_ERR_WANTR);
 
         law_msg_queue_close(&queue);
 }
@@ -134,13 +134,13 @@ void test_task_create_destroy()
         law_task_destroy(task);
 }
 
-law_task_pool_t *law_task_pool_create(law_server_config_t *cfg);
+law_task_pool_t *law_task_pool_create(law_server_cfg_t *cfg);
 void law_task_pool_destroy(law_task_pool_t *pool);
 bool law_task_pool_is_full(law_task_pool_t *pool);
 
 void test_task_pool_create_destroy()
 {
-        law_server_config_t cfg = law_server_sanity();
+        law_server_cfg_t cfg = law_server_sanity();
 
         law_task_pool_t *pool = law_task_pool_create(&cfg);
 
@@ -156,7 +156,7 @@ bool law_task_pool_is_empty(law_task_pool_t *pool);
 
 void test_task_pool_pop_push()
 {
-        law_server_config_t cfg = law_server_sanity();
+        law_server_cfg_t cfg = law_server_sanity();
         cfg.workers = 1;
         cfg.worker_tasks = 2;
 
@@ -189,7 +189,7 @@ void test_ready_set_push_pop()
 {
         law_ready_set_t ready;
 
-        law_server_config_t cfg = law_server_sanity();
+        law_server_cfg_t cfg = law_server_sanity();
         cfg.workers = 1;
         cfg.worker_tasks = 2;
 
@@ -209,7 +209,7 @@ law_worker_t *law_worker_create(law_server_t *server, const int id);
 
 void test_server_create_destroy()
 {
-        law_server_config_t cfg = law_server_sanity();
+        law_server_cfg_t cfg = law_server_sanity();
         cfg.workers = 2;
         cfg.worker_tasks = 2;
 
@@ -225,17 +225,17 @@ void law_slot_decode(uint64_t encoding, law_slot_t *slot);
 
 void test_slot_encode_decode()
 {
-        law_slot_t slot = { .id = 0xABCDEFABCDEFABUL, .index = 5 };
+        law_slot_t slot = { .id = 0xABCDEFABCDEFABUL, .data = 5 };
 
         uint64_t code = law_slot_encode(&slot);
 
         slot.id = 0;
-        slot.index = 0;
+        slot.data = 0;
 
         law_slot_decode(code, &slot);
 
         assert(slot.id == 0xABCDEFABCDEFABUL);
-        assert(slot.index == 5);
+        assert(slot.data == 5);
 }
 
 int main(int argc, char **args)

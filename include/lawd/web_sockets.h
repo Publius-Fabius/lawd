@@ -2,7 +2,7 @@
 #define LAWD_WEBSOCK_H
 
 #include "lawd/error.h"
-#include "lawd/http/server.h"
+#include "lawd/http_server.h"
 #include <stdint.h>
 
 /** Maximum WebSocket Accept Length */
@@ -76,14 +76,14 @@ sel_err_t law_ws_read_head_large(
 
 /** Initialize an XOR cipher. */
 struct law_ws_xor *law_ws_xor_init(
-        struct law_ws_xor *xor,
+        struct law_ws_xor *wx,
         struct law_ws_masking_key *key);
 
 /** Generate an XOR cipher from a secure random. */
 struct law_ws_xor *law_ws_xor_gen(struct law_ws_xor *cipher);
 
 /** Apply XOR encrytion to the buffer. */
-void *law_ws_xor_apply(struct law_ws_xor *xor, void *buf, const size_t len);
+void *law_ws_xor_apply(struct law_ws_xor *wx, void *buf, const size_t len);
 
 /** Write a WebSocket head to the output buffer. */
 sel_err_t law_ws_write_head(struct law_htconn *con, struct law_ws_head *head);

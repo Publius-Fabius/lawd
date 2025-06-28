@@ -56,16 +56,16 @@ sel_err_t accepter(struct law_worker *w, int sock, struct law_data data)
 
 int main(int argc, char ** argv)
 {
-        law_error_init();
+        law_err_init();
 
         signal(SIGPIPE, SIG_IGN);
 
         int data = 0;
 
-        law_server_config_t cfg = law_server_sanity();
+        law_server_cfg_t cfg = law_server_sanity();
         cfg.init = initer;
         cfg.tick = ticker;
-        cfg.accept = accepter;
+        cfg.on_accept = accepter;
         cfg.data.ptr = &data;
         law_server_t *srv = law_server_create(&cfg);
 

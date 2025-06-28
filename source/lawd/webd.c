@@ -116,11 +116,11 @@ static sel_err_t law_wd_service_conn(
                 &head);
         if(err != LAW_ERR_OK) {
                 law_wd_log_error(errs, sock, "law_hts_read_head", err);
-                SEL_FREPORT(errs, LAW_ERR_TTL);
+                SEL_FREPORT(errs, LAW_ERR_TIMEOUT);
         }
         
         int status = 0;
-        if(err == LAW_ERR_TTL) {
+        if(err == LAW_ERR_TIMEOUT) {
                 status = 408; 
                 err = onerror(webd, worker, req, status, data);
         } else if(err == LAW_ERR_SYS || err == LAW_ERR_SSL) { 

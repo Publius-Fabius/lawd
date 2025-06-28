@@ -91,6 +91,8 @@ let status_line =
         (law_htp_cap_status $ status_code) SP 
         reason_phrase CRLF;
 
+let headers = 0_1(parse_field) 0_127(CRLF parse_field) CRLF CRLF;
+
 let request_head = request_line 0_127(parse_field CRLF) CRLF;
 
 let response_head = status_line 0_127(parse_field CRLF) CRLF;
