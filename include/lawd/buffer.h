@@ -7,17 +7,21 @@
 /**
  * Read from the file descriptor.
  * 
+ * LAW_ERR_OK
  * LAW_ERR_EOF
  * LAW_ERR_WANTR
+ * LAW_ERR_OOB
  * LAW_ERR_SYS
  */
 intptr_t law_buf_read(struct pgc_buf *buf, int fd, const size_t len);
 
 /**
- * Write to the buffer.
+ * Write to the file descriptor.
  * 
+ * LAW_ERR_OK
  * LAW_ERR_SYS
  * LAW_ERR_WANTW
+ * LAW_ERR_OOB
  */
 intptr_t law_buf_write(struct pgc_buf *buf, int fd, const size_t len);
 

@@ -209,27 +209,28 @@ void test_read_scan()
 
         write(fds[1], "test;;ab", 8);
 
-        SEL_TEST(law_htc_read_scan(&conn, ";;", 2) == LAW_ERR_OK);
+        SEL_TEST(law_htc_read_scan(&conn, 0, ";;", 2) == LAW_ERR_OK);
         SEL_TEST(pgc_buf_tell(&in) == 6);
 
-        // [abcdefg;] -- WANTR, offset = 7
+        // [abcdefg;] -- OOB, offset = 7
         pgc_buf_init(&in, bytes, 8, 0);
         write(fds[1], "abcdefg;", 8);
-        SEL_TEST(law_htc_read_scan(&conn, ";;", 2) == LAW_ERR_WANTR);
+        SEL_TEST(law_htc_read_scan(&conn, 0, ";;", 2) == LAW_ERR_OOB);
         SEL_TEST(pgc_buf_tell(&in) == 7);
 
         // [abcdef;] -- WANTR, offset = 6
-        pgc_buf_init(&in, bytes, 7, 0);
+        pgc_buf_init(&in, bytes, 8, 0);
         write(fds[1], "abcdef;", 7);
-        SEL_TEST(law_htc_read_scan(&conn, ";;", 2) == LAW_ERR_WANTR);
+        SEL_TEST(law_htc_read_scan(&conn, 0, ";;", 2) == LAW_ERR_WANTR);
         SEL_TEST(pgc_buf_tell(&in) == 6);
 
-        SEL_TEST(law_htc_read_scan(&conn, ";;;;;;;;;", 9) == LAW_ERR_OOB);
+        SEL_TEST(law_htc_read_scan(&conn, 0, ";;;;;;;;;", 9) == LAW_ERR_OOB);
         SEL_TEST(pgc_buf_tell(&in) == 6);
 
         close(fds[1]);
 
-        SEL_TEST(law_htc_read_scan(&conn, ";;", 2) == LAW_ERR_EOF);
+        pgc_buf_init(&in, bytes, 8, 0);
+        SEL_TEST(law_htc_read_scan(&conn, 0, ";;", 2) == LAW_ERR_EOF);
 
         close(fds[0]);
 }

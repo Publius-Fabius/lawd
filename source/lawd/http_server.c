@@ -37,28 +37,32 @@ typedef struct law_hts_read_args {
         size_t base;
 } law_hts_read_args_t;
 
-sel_err_t law_hts_read_reqline(
+static sel_err_t law_hts_read_scan_parse(
         law_hts_req_t *req,
-        law_hts_reqline_t *reqline,
-        const size_t base)
+        const size_t base,
+        void *delim,
+        const size_t dlen,
+        const struct pgc_par *parser,
+        struct pgc_ast_lst **list)
 {
-        static char *CRLF = "\r\n";
+        SEL_ASSERT(req);
 
         struct pgc_buf *in = req->conn.in;
-
         struct pgc_stk 
                 *stack = req->stack,
                 *heap = req->heap;
+        const size_t max = pgc_buf_max(in);
 
-        law_err_clear();
+        SEL_ASSERT(in && stack && heap && base <= pgc_buf_end(in));
+
+        (void)law_err_clear();
         
-        if((pgc_buf_end(in) - base) > pgc_buf_max(in)) {
-                return LAW_ERR_PUSH(LAW_ERR_OOB, "in_bounds_check");
-        }
+        if(pgc_buf_end(in) - base > max) 
+                return LAW_ERR_PUSH(LAW_ERR_OOB, "early_out_check");
 
-        sel_err_t err = -1;
+        sel_err_t err = law_htc_read_scan(&req->conn, base, delim, dlen);
 
-        switch((err = law_htc_read_scan(&req->conn, CRLF, 2))) {
+        switch(err) {
                 case LAW_ERR_OK:
                         break;
                 case LAW_ERR_WANTR:
@@ -67,31 +71,62 @@ sel_err_t law_hts_read_reqline(
                 default:
                         return LAW_ERR_PUSH(err, "law_htc_read_scan");
         }
-
+        
         const size_t end = pgc_buf_tell(in);
 
-        if(pgc_buf_seek(in, base) != LAW_ERR_OK) {
-                return LAW_ERR_PUSH(LAW_ERR_OOB, "pgc_buf_seek");
-        }
-
+        SEL_TEST(pgc_buf_seek(in, base) == LAW_ERR_OK);
+  
         struct pgc_buf lens; 
-        pgc_buf_lens(&lens, in, end - base);
+        (void)pgc_buf_lens(&lens, in, end - base);
 
-        struct pgc_ast_lst *list = NULL;
-
-        if(pgc_lang_parse_ex(
-                &law_htp_request_line, 
+        switch(pgc_lang_parse_ex(
+                parser, 
                 stack, 
                 &lens, 
                 heap, 
-                &list) != PGC_ERR_OK) 
+                list)) 
         {
-                return LAW_ERR_PUSH(LAW_ERR_SYN, "pgc_lang_parse_ex");
+                case LAW_ERR_OK:
+                        break;
+                case LAW_ERR_OOM: 
+                        return LAW_ERR_PUSH(LAW_ERR_OOM, "pgc_lang_parse_ex");
+                default: 
+                        return LAW_ERR_PUSH(LAW_ERR_SYN, "pgc_lang_parse_ex");
         }
+
+        if(pgc_buf_tell(&lens) != pgc_buf_end(&lens)) 
+                return LAW_ERR_PUSH(LAW_ERR_SYN, "parse_incomplete");
+
+        SEL_TEST(pgc_buf_seek(in, end) == LAW_ERR_OK);
+
+        return LAW_ERR_OK;
+}
+
+sel_err_t law_hts_read_reqline(
+        law_hts_req_t *req,
+        law_hts_reqline_t *reqline,
+        const size_t base)
+{
+        static char *CRLF = "\r\n";
+
+        SEL_ASSERT(reqline);
+
+        struct pgc_ast_lst *list = NULL;
+
+        sel_err_t err = law_hts_read_scan_parse(
+                req,
+                base,
+                CRLF,
+                2,
+                &law_htp_request_line,
+                &list);
+        if(err != LAW_ERR_OK) return err;
+
+        (void)memset(reqline, 0, sizeof(law_hts_reqline_t));
 
         reqline->method = pgc_ast_tostr(pgc_ast_at(list, 0)->val);
 
-        law_uri_from_ast(
+        (void)law_uri_from_ast(
                 &reqline->target, 
                 pgc_ast_tolst(pgc_ast_at(list, 1)->val));
 
@@ -132,49 +167,19 @@ sel_err_t law_hts_read_headers(
 {
         static char *CRLF2 = "\r\n\r\n";
 
-        struct pgc_buf *in = req->conn.in;
+        SEL_ASSERT(headers);
 
-        struct pgc_stk 
-                *stack = req->stack,
-                *heap = req->heap;
+        (void)memset(headers, 0, sizeof(law_htheaders_t));
 
-        law_err_clear();
-        
-        if((pgc_buf_end(in) - base) > pgc_buf_max(in)) {
-                return LAW_ERR_PUSH(LAW_ERR_OOB, "in_bounds_check");
-        }
+        sel_err_t err = law_hts_read_scan_parse(
+                req,
+                base,
+                CRLF2,
+                4,
+                &law_htp_headers,
+                &headers->list);
+        if(err != LAW_ERR_OK) return err;
 
-        sel_err_t err = -1;
-
-        switch((err = law_htc_read_scan(&req->conn, CRLF2, 4))) {
-                case LAW_ERR_OK:
-                        break;
-                case LAW_ERR_WANTR:
-                case LAW_ERR_WANTW:
-                        return err;
-                default:
-                        return LAW_ERR_PUSH(err, "law_htc_read_scan");
-        }
-
-        const size_t end = pgc_buf_tell(in);
-
-        if(pgc_buf_seek(in, base) != LAW_ERR_OK) {
-                return LAW_ERR_PUSH(LAW_ERR_OOB, "pgc_buf_seek");
-        }
-
-        struct pgc_buf lens; 
-        pgc_buf_lens(&lens, in, end - base);
-
-        if(pgc_lang_parse_ex(
-                &law_htp_headers, 
-                stack, 
-                &lens, 
-                heap, 
-                &headers->list) != PGC_ERR_OK) 
-        {
-                return LAW_ERR_PUSH(LAW_ERR_SYN, "pgc_lang_parse_ex");
-        }
- 
         return LAW_ERR_OK;
 }
 
@@ -201,64 +206,6 @@ sel_err_t law_hts_read_headers_sync(
                 law_hts_read_headers_cb, 
                 request->conn.socket, 
                 &args);
-}
-
-const char *law_hts_status_str(const int status_code)
-{
-        SEL_ASSERT(status_code > 0);
-        switch(status_code) {
-
-                /* Informational 1xx */
-                case 100: return "Continue";
-                case 101: return "Switching Protocols";
-
-                /* Successful 2xx */
-                case 200: return "OK";
-                case 201: return "Created";
-                case 202: return "Accepted";
-                case 203: return "Non-Authoritative Information";
-                case 204: return "No Content";
-                case 205: return "Reset Content";
-
-                /* Redirection 3xx */
-                case 300: return "Multiple Choices";
-                case 301: return "Moved Permanently";
-                case 302: return "Found";
-                case 303: return "See Other";
-                case 304: return "Not Modified";
-                case 305: return "Use Proxy";
-                case 307: return "Temporary Redirect";
-
-                /* Client Error 4xx */
-                case 400: return "Bad Request";
-                case 401: return "Unauthorized";
-                case 402: return "Payment Required";
-                case 403: return "Forbidden";
-                case 404: return "Not Found";
-                case 405: return "Method Not Allowed";
-                case 406: return "Not Acceptable";
-                case 407: return "Proxy Authentication Required";
-                case 408: return "Request Timeout";
-                case 409: return "Conflict";
-                case 410: return "Gone";
-                case 411: return "Length Required";
-                case 412: return "Precondition Failed";
-                case 413: return "Request Entity Too Large";
-                case 414: return "Request-URI Too Long";
-                case 415: return "Unsupported Media Type";
-                case 416: return "Requested Range Not Satisfiable";
-                case 417: return "Expectation Failed";
-
-                /* Server Error 5xx */
-                case 500: return "Internal Server Error";
-                case 501: return "Not Implemented";
-                case 502: return "Bad Gateway";
-                case 503: return "Service Unavailable";
-                case 504: return "Gateway Timeout";
-                case 505: return "HTTP Version Not Supported";
-
-                default: return "Unknown Status Code";
-        }
 }
 
 sel_err_t law_hts_set_status(
@@ -292,7 +239,7 @@ sel_err_t law_hts_begin_body(law_hts_req_t *req)
         return pgc_buf_put(req->conn.out, "\r\n", 2);
 }
 
-law_htserver_cfg_t law_hts_sanity()
+law_htserver_cfg_t law_htserver_sanity()
 {
         law_htserver_cfg_t cfg;
         memset(&cfg, 0, sizeof(law_htserver_cfg_t));
@@ -403,8 +350,10 @@ law_hts_pool_t *law_hts_buf_pool_init(
         const size_t pool_size, 
         const size_t buf_length)
 {
-        law_hts_buf_t *buf = NULL;
+        memset(pool, 0, sizeof(law_hts_pool_t));
 
+        law_hts_buf_t *buf = NULL;
+        
         for(int n = 0; n < pool_size; ++n) {
                 if(!(buf = law_hts_buf_create(buf_length))) {
                         law_hts_buf_pool_free(pool);
@@ -421,7 +370,9 @@ law_hts_pool_t *law_hts_buf_pool_init(
 
 law_hts_buf_t *law_hts_buf_pool_pop(law_hts_pool_t *pool)
 {
-        return pmt_ll_node_remove_first(&law_hts_buf_iface, &pool->list);
+        return pmt_ll_node_remove_first(
+                &law_hts_buf_iface, 
+                &pool->list);
 }
 
 void law_hts_buf_pool_push(law_hts_pool_t *pool, law_hts_buf_t *buf)
@@ -448,6 +399,8 @@ law_hts_pool_t *law_hts_stk_pool_init(
         const size_t pool_size, 
         const size_t stk_length)
 {
+        memset(pool, 0, sizeof(law_hts_pool_t));
+
         law_hts_stk_t *stk = NULL;
 
         for(int n = 0; n < pool_size; ++n) {
@@ -466,7 +419,9 @@ law_hts_pool_t *law_hts_stk_pool_init(
 
 law_hts_stk_t *law_hts_stk_pool_pop(law_hts_pool_t *pool)
 {
-        return pmt_ll_node_remove_first(&law_hts_stk_iface, &pool->list);
+        return pmt_ll_node_remove_first(
+                &law_hts_stk_iface, 
+                &pool->list);
 }
 
 void law_hts_stk_pool_push(law_hts_pool_t *pool, law_hts_stk_t *stk)
@@ -510,16 +465,16 @@ law_hts_pool_group_t *law_hts_pool_group_create(
         return grp;
 
         FREE_IN_POOL:
-        law_hts_buf_pool_free(&grp->in_pool);
+        (void)law_hts_buf_pool_free(&grp->in_pool);
 
         FREE_STACK_POOL:
-        law_hts_stk_pool_free(&grp->stack_pool);        
+        (void)law_hts_stk_pool_free(&grp->stack_pool);        
 
         FREE_HEAP_POOL:
-        law_hts_stk_pool_free(&grp->heap_pool);
+        (void)law_hts_stk_pool_free(&grp->heap_pool);
 
         FREE_GROUP:
-        free(grp);
+        (void)free(grp);
 
         return NULL;
 }
@@ -527,11 +482,11 @@ law_hts_pool_group_t *law_hts_pool_group_create(
 void law_hts_pool_group_destroy(law_hts_pool_group_t *grp)
 {
         if(!grp) return;
-        law_hts_buf_pool_free(&grp->out_pool);
-        law_hts_buf_pool_free(&grp->in_pool);
-        law_hts_stk_pool_free(&grp->stack_pool);        
-        law_hts_stk_pool_free(&grp->heap_pool);
-        free(grp);
+        (void)law_hts_buf_pool_free(&grp->out_pool);
+        (void)law_hts_buf_pool_free(&grp->in_pool);
+        (void)law_hts_stk_pool_free(&grp->stack_pool);        
+        (void)law_hts_stk_pool_free(&grp->heap_pool);
+        (void)free(grp);
 }
 
 law_hts_pool_group_t **law_hts_pool_groups_create(
@@ -554,11 +509,12 @@ law_hts_pool_group_t **law_hts_pool_groups_create(
         return groups;
 
         FAILURE:
+
         for(int m = 0; m < n; ++m) {
-                law_hts_pool_group_destroy(groups[m]);
+                (void)law_hts_pool_group_destroy(groups[m]);
         }
         
-        free(groups);
+        (void)free(groups);
         
         return NULL;
 }
@@ -568,13 +524,14 @@ void law_hts_pool_groups_destroy(
         const int ngroups)
 {
         for(int n = 0; n < ngroups; ++n) {
-                law_hts_pool_group_destroy(groups[n]);
+                (void)law_hts_pool_group_destroy(groups[n]);
         }
+        (void)free(groups);
 }
 
 law_htserver_t *law_htserver_create(
-        law_htserver_cfg_t *hts_cfg,
-        law_server_cfg_t *srv_cfg)
+        law_server_cfg_t *srv_cfg,
+        law_htserver_cfg_t *hts_cfg)
 {
         law_htserver_t *srv = calloc(1, sizeof(law_htserver_t));
         if(!srv) return NULL;
@@ -584,7 +541,7 @@ law_htserver_t *law_htserver_create(
         srv->workers = srv_cfg->workers;
 
         if(!(srv->groups = law_hts_pool_groups_create(srv_cfg, hts_cfg))) {
-                free(srv);
+                (void)free(srv);
                 return NULL;
         }
 
@@ -593,8 +550,8 @@ law_htserver_t *law_htserver_create(
 
 void law_htserver_destroy(law_htserver_t *server)
 {
-        law_hts_pool_groups_destroy(server->groups, server->workers);
-        free(server);
+        (void)law_hts_pool_groups_destroy(server->groups, server->workers);
+        (void)free(server);
 }
 
 static sel_err_t law_hts_init_ssl_ctx(law_htserver_t *server)
@@ -610,7 +567,7 @@ static sel_err_t law_hts_init_ssl_ctx(law_htserver_t *server)
                 server->cfg.cert, 
                 SSL_FILETYPE_PEM);
         if(err < 0) {
-                SSL_CTX_free(context);
+                (void)SSL_CTX_free(context);
                 return LAW_ERR_PUSH(
                         LAW_ERR_SSL, 
                         "SSL_CTX_use_certificate_file");
@@ -622,7 +579,7 @@ static sel_err_t law_hts_init_ssl_ctx(law_htserver_t *server)
                 server->cfg.pkey, 
                 SSL_FILETYPE_PEM);
         if(err < 0) {
-                SSL_CTX_free(context);
+                (void)SSL_CTX_free(context);
                 return LAW_ERR_PUSH(
                         LAW_ERR_SSL, 
                         "SSL_CTX_use_PrivateKey_file");
@@ -640,7 +597,7 @@ sel_err_t law_htserver_open(law_htserver_t *server)
 
 sel_err_t law_htserver_close(law_htserver_t *server)
 {
-        SSL_CTX_free(server->ssl_ctx);
+        (void)SSL_CTX_free(server->ssl_ctx);
         return LAW_ERR_OK;
 }
 
@@ -649,10 +606,10 @@ sel_err_t law_hts_entry_handler(law_worker_t *worker, law_hts_req_t *req)
         law_htserver_t *hts = req->htserver;
 
         law_hts_reqline_t reqline;
-        memset(&reqline, 0, sizeof(law_hts_reqline_t));
+        (void)memset(&reqline, 0, sizeof(law_hts_reqline_t));
 
         law_htheaders_t headers;
-        memset(&headers, 0, sizeof(law_htheaders_t));
+        (void)memset(&headers, 0, sizeof(law_htheaders_t));
 
         sel_err_t err = -1;
 
@@ -832,7 +789,7 @@ void law_hts_entry_setup(law_worker_t *worker, law_hts_req_t *req)
 
         SSL_FREE:
 
-        law_htc_ssl_free(&req->conn);
+        (void)law_htc_ssl_free(&req->conn);
 
         DELETE_SOCKET:
 
@@ -866,31 +823,89 @@ sel_err_t law_hts_entry(
         law_htserver_cfg_t *cfg = &server->cfg;
 
         law_hts_req_t req;
-        memset(&req, 0, sizeof(law_hts_req_t));
+        (void)memset(&req, 0, sizeof(law_hts_req_t));
 
-        law_hts_pool_group_t *group = server->groups[law_get_worker_id(worker)];
+        law_hts_pool_group_t *grp = server->groups[law_get_worker_id(worker)];
 
-        law_hts_buf_t *in = law_hts_buf_pool_pop(&group->in_pool);
-        law_hts_buf_t *out = law_hts_buf_pool_pop(&group->out_pool);
-        law_hts_stk_t *heap = law_hts_stk_pool_pop(&group->heap_pool);
-        law_hts_stk_t *stack = law_hts_stk_pool_pop(&group->stack_pool);
+        law_hts_buf_t *in = law_hts_buf_pool_pop(&grp->in_pool);
+        law_hts_buf_t *out = law_hts_buf_pool_pop(&grp->out_pool);
+        law_hts_stk_t *heap = law_hts_stk_pool_pop(&grp->heap_pool);
+        law_hts_stk_t *stack = law_hts_stk_pool_pop(&grp->stack_pool);
 
         SEL_ASSERT(in && out && heap && stack);
 
         req.htserver = server;
         req.conn.security = cfg->security;
         req.conn.socket = socket;
-        req.conn.in = &in->buffer;
-        req.conn.out = &out->buffer;
-        req.heap = &heap->stack;
-        req.stack = &stack->stack;
+        req.conn.in = pgc_buf_zero(&in->buffer);
+        req.conn.out = pgc_buf_zero(&out->buffer);
+        req.heap = pgc_stk_zero(&heap->stack);
+        req.stack = pgc_stk_zero(&stack->stack);
 
         (void)law_hts_entry_setup(worker, &req);
 
-        law_hts_buf_pool_push(&group->in_pool, in);
-        law_hts_buf_pool_push(&group->out_pool, out);
-        law_hts_stk_pool_push(&group->heap_pool, heap);
-        law_hts_stk_pool_push(&group->stack_pool, stack);
+        (void)law_hts_buf_pool_push(&grp->in_pool, in);
+        (void)law_hts_buf_pool_push(&grp->out_pool, out);
+        (void)law_hts_stk_pool_push(&grp->heap_pool, heap);
+        (void)law_hts_stk_pool_push(&grp->stack_pool, stack);
 
         return LAW_ERR_OK;
+}
+
+const char *law_hts_status_str(const int status_code)
+{
+        SEL_ASSERT(status_code > 0);
+        switch(status_code) {
+
+                /* Informational 1xx */
+                case 100: return "Continue";
+                case 101: return "Switching Protocols";
+
+                /* Successful 2xx */
+                case 200: return "OK";
+                case 201: return "Created";
+                case 202: return "Accepted";
+                case 203: return "Non-Authoritative Information";
+                case 204: return "No Content";
+                case 205: return "Reset Content";
+
+                /* Redirection 3xx */
+                case 300: return "Multiple Choices";
+                case 301: return "Moved Permanently";
+                case 302: return "Found";
+                case 303: return "See Other";
+                case 304: return "Not Modified";
+                case 305: return "Use Proxy";
+                case 307: return "Temporary Redirect";
+
+                /* Client Error 4xx */
+                case 400: return "Bad Request";
+                case 401: return "Unauthorized";
+                case 402: return "Payment Required";
+                case 403: return "Forbidden";
+                case 404: return "Not Found";
+                case 405: return "Method Not Allowed";
+                case 406: return "Not Acceptable";
+                case 407: return "Proxy Authentication Required";
+                case 408: return "Request Timeout";
+                case 409: return "Conflict";
+                case 410: return "Gone";
+                case 411: return "Length Required";
+                case 412: return "Precondition Failed";
+                case 413: return "Request Entity Too Large";
+                case 414: return "Request-URI Too Long";
+                case 415: return "Unsupported Media Type";
+                case 416: return "Requested Range Not Satisfiable";
+                case 417: return "Expectation Failed";
+
+                /* Server Error 5xx */
+                case 500: return "Internal Server Error";
+                case 501: return "Not Implemented";
+                case 502: return "Bad Gateway";
+                case 503: return "Service Unavailable";
+                case 504: return "Gateway Timeout";
+                case 505: return "HTTP Version Not Supported";
+
+                default: return "Unknown Status Code";
+        }
 }

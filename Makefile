@@ -157,7 +157,7 @@ bin/test_uri : tests/lawd/uri.c \
 build/lawd/http_parser.o: source/lawd/http_parser.c \
 	include/lawd/http_parser.h includes
 	$(CC) $(CFLAGS) -c -o $@ $<
-tmp/lawd/http_parser_gen.c : grammar/http.g bin/pgenc
+tmp/lawd/http_parsers.c : grammar/http.g bin/pgenc
 	bin/pgenc $@ law_htp $< 
 build/lawd/http_parsers.o: tmp/lawd/http_parsers.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -171,7 +171,7 @@ bin/test_http_parser: tests/lawd/http_parser.c \
 	$(CC) $(CFLAGS) -o $@ $^
 
 # http_headers.h
-build/lawd/http_headers.o: source/lawd/http_headers.c \
+build/lawd/http_headers.o: source/lawd/http_headers.c includes \
 	include/lawd/http_headers.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -187,7 +187,7 @@ run_test_buffer : bin/test_buffer
 	valgrind -q --track-fds=yes --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # http_connection.h
-build/lawd/http_conn.o: source/lawd/http_conn.c \
+build/lawd/http_conn.o: source/lawd/http_conn.c includes \
 	include/lawd/http_conn.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 bin/test_http_conn: tests/lawd/http_conn.c \
@@ -209,7 +209,7 @@ run_test_http_conn : bin/test_http_conn
 	valgrind -q --track-fds=yes --error-exitcode=1 --leak-check=full $^ 1>/dev/null
 
 # http/server.h
-build/lawd/http_server.o: source/lawd/http_server.c \
+build/lawd/http_server.o: source/lawd/http_server.c includes \
 	include/lawd/http_server.h 
 	$(CC) $(CFLAGS) -c -o $@ $<
 bin/test_http_server: tests/lawd/http_server.c \

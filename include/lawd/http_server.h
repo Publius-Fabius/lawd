@@ -69,6 +69,7 @@ int law_hts_get_security(law_htserver_t *server);
  * 
  * LAW_ERR_WANTR 
  * LAW_ERR_WANTW 
+ * LAW_ERR_OOM
  * LAW_ERR_OOB
  * LAW_ERR_SYN
  * LAW_ERR_EOF 
@@ -86,6 +87,7 @@ sel_err_t law_hts_read_reqline(
  * 
  * LAW_ERR_TIMEOUT
  * LAW_ERR_OOB
+ * LAW_ERR_OOM
  * LAW_ERR_SYN
  * LAW_ERR_EOF 
  * LAW_ERR_SYS
@@ -172,12 +174,12 @@ sel_err_t law_hts_add_header(
 sel_err_t law_hts_begin_body(law_hts_req_t *request);
 
 /** Sane configuration. */
-law_htserver_cfg_t law_hts_sanity();
+law_htserver_cfg_t law_htserver_sanity();
 
 /** Create a new HTTP context. */
 law_htserver_t *law_htserver_create(
-        law_htserver_cfg_t *htserver_cfg,
-        law_server_cfg_t *server_cfg);
+        law_server_cfg_t *server_cfg,
+        law_htserver_cfg_t *htserver_cfg);
 
 /** Destroy HTTP server. */
 void law_htserver_destroy(law_htserver_t *server);

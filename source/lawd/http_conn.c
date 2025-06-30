@@ -213,17 +213,28 @@ sel_err_t law_htc_flush_sync(
 
 sel_err_t law_htc_read_scan(
         law_htconn_t *conn, 
+        const size_t base,
         void *delim, 
         const size_t len)
 {
+        SEL_ASSERT(conn && delim && len);
+
         struct pgc_buf *in = conn->in;
+
+        const size_t max = pgc_buf_max(in);
+
+        if(max < len) 
+                return LAW_ERR_PUSH(LAW_ERR_OOB, "delim_too_long");
+
+        const size_t offset = pgc_buf_tell(in);
+
+        if(pgc_buf_seek(in, base) != LAW_ERR_OK) 
+                return LAW_ERR_PUSH(LAW_ERR_OOB, "pgc_buf_seek");
 
         const intptr_t result = law_htc_read_data(conn);
 
-        if(pgc_buf_max(in) < len) {
-                return LAW_ERR_OOB;
-        }
-        
+        SEL_TEST(pgc_buf_seek(in, offset) == LAW_ERR_OK);
+
         if(!(result > 0)) {
                 switch(result) {
                         case LAW_ERR_WANTW:
@@ -238,13 +249,14 @@ sel_err_t law_htc_read_scan(
                 }
         }
 
-        if(pgc_buf_scan(in, delim, len) == LAW_ERR_OK) {
+        if(pgc_buf_scan(in, delim, len) == LAW_ERR_OK) 
                 return LAW_ERR_OK;
-        } 
 
-        if(result > 0) {
+        if(pgc_buf_end(in) - base >= max) 
+                return LAW_ERR_OOB;
+
+        if(result > 0) 
                 return LAW_ERR_WANTR;
-        } 
 
         return (sel_err_t)result;
 }

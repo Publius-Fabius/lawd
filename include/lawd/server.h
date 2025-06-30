@@ -147,8 +147,7 @@ sel_err_t law_ectl(
         int8_t data);
 
 /** 
- * Wait for events.  Event data is a pointer to the event slot registered 
- * with law_srv_ectl.
+ * Wait for events.  
  * 
  * RETURNS: 
  *      >= 0 - The number of events received from 0 to max_events.

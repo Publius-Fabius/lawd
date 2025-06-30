@@ -34,7 +34,7 @@ enum law_err_type {
         LAW_ERR_EOF                             = -1707,
         LAW_ERR_SSL                             = -1708,
 
-        /* Server Errors */
+        /* HTTP Errors */
 
         LAW_ERR_SSL_ACCEPT_FAILED               = -1800,
         LAW_ERR_SSL_SHUTDOWN_FAILED             = -1801,
@@ -53,19 +53,12 @@ enum law_err_type {
         LAW_ERR_SSL_SHUTDOWN_TIMEOUT            = -1812
 };
 
-/** Error Info */
-typedef struct law_err_info {
-        
-        sel_err_t type;
-
-        const char *action;
-
-        const char *file;
-
-        const char *function;
-
-        int line;
-
+typedef struct law_err_info {                   /** Error Info */
+        sel_err_t type;                         /** Error Type */
+        const char *action;                     /** Action String */
+        const char *file;                       /** Source File Name */
+        const char *function;                   /** Function Name */
+        int line;                               /** Line Number */
 } law_err_info_t;
 
 /** 

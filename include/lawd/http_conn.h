@@ -70,6 +70,7 @@ intptr_t law_htc_read_data(law_htconn_t *conn);
  */
 sel_err_t law_htc_read_scan(
         law_htconn_t *conn, 
+        const size_t base,
         void *delim, 
         const size_t delim_len);
 
