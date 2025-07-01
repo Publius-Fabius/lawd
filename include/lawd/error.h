@@ -29,10 +29,12 @@ enum law_err_type {
         LAW_ERR_GAI                             = -1702,               
         LAW_ERR_WANTW                           = -1703,            
         LAW_ERR_WANTR                           = -1704,            
-        LAW_ERR_TIMEOUT                         = -1705,               
+        LAW_ERR_TIME                            = -1705,               
         LAW_ERR_LIMIT                           = -1706,            
         LAW_ERR_EOF                             = -1707,
         LAW_ERR_SSL                             = -1708,
+        LAW_ERR_VERS                            = -1709,
+        LAW_ERR_NOID                            = -1710,
 
         /* HTTP Errors */
 
@@ -42,15 +44,9 @@ enum law_err_type {
         LAW_ERR_HEADERS_TOO_LONG                = -1803,
         LAW_ERR_REQLINE_MALFORMED               = -1804,
         LAW_ERR_HEADERS_MALFORMED               = -1805,
-         
-        LAW_ERR_INVALID_METHOD                  = -1806,
-        LAW_ERR_INVALID_URI                     = -1807,
-        LAW_ERR_INVALID_HTTP_VERSION            = -1808,
-        LAW_ERR_INVALID_HEADER                  = -1809,
-
-        LAW_ERR_REQLINE_TIMEOUT                 = -1810,
-        LAW_ERR_HEADERS_TIMEOUT                 = -1811,
-        LAW_ERR_SSL_SHUTDOWN_TIMEOUT            = -1812
+        LAW_ERR_REQLINE_TIMEOUT                 = -1806,
+        LAW_ERR_HEADERS_TIMEOUT                 = -1807,
+        LAW_ERR_SSL_SHUTDOWN_TIMEOUT            = -1808
 };
 
 typedef struct law_err_info {                   /** Error Info */
@@ -62,12 +58,27 @@ typedef struct law_err_info {                   /** Error Info */
 } law_err_info_t;
 
 /** 
- * Pop error info from the thread-local error stack. 
+ * Clear the error stack. 
+ */
+void law_err_clear();
+
+/**
+ * Get a copy of the bottom-most error on the thread stack.
+ */
+bool law_err_bottom(law_err_info_t *info);
+
+/**
+ * Peek the top-most error on the thread stack.
+ */
+bool law_err_peek(law_err_info_t *info);
+
+/** 
+ * Pop the top-most error from the error stack. 
  */
 bool law_err_pop(law_err_info_t *info);
 
 /** 
- * Push an error onto the thread-local error stack. 
+ * Push an error to the error stack. 
  */
 sel_err_t law_err_push(
         const sel_err_t type,
@@ -77,20 +88,23 @@ sel_err_t law_err_push(
         const int line);
 
 /** 
- * Push error info to the thread-local error stack.
+ * Push error info to the error stack.
  */
 #define LAW_ERR_PUSH(TYPE, ACTION) \
         law_err_push((TYPE), (ACTION), __FILE__, __func__, __LINE__)
 
-/** 
- * Clear the thread-local error stack. 
- */
-void law_err_clear();
-
 /**
  * Print out error info.
+ * 
+ * = 01fa LAW_ERR_OOB bounds_check push_task():server.c:215 
+ * 
  */
-sel_err_t law_err_fprint(FILE *stream, law_err_info_t *info);
+sel_err_t law_err_print(FILE *stream, law_err_info_t *info);
+
+/**
+ * Print stack trace.
+ */
+sel_err_t law_err_print_stack(FILE *stream);
 
 /** 
  * Initialize errors. 

@@ -19,72 +19,114 @@ char *law_log_ntop(
         struct law_log_ip_buf *ip_addr);
 
 /** 
- * [datetime] action error_type \r\n
- *     Error Details: details \r\n
- *     Location: file func line \r\n
+ * ! thread_id [datetime] error action
+ * func() : file : line
+ * details
+ */
+sel_err_t law_log_err_ex(
+        FILE *stream,
+        const char *error,
+        const char *action,
+        const char *details,
+        const char *file,
+        const char *func,
+        const int line);
+
+/**
+ * ! thread_id [datetime] error action 
+ * func() : file : line
+ * details
  */
 sel_err_t law_log_err(
         FILE *stream,
-        const char *action,
         sel_err_t error,
-        const char *details,
+        const char *action,
         const char *file,
         const char *func,
         const int line);
 
 /** 
- * [datetime] action error_type \r\n
- *     Error Details: error_details \r\n
- *     Location: file func line \r\n
+ * ! thread_id [datetime] error action 
+ * func() : file : line
+ * details
  */
-#define LAW_LOG_ERR(STREAM, ACTION, ERROR, DETAILS)     \
-        law_log_err(                                    \
-                STREAM,                                 \
-                ACTION,                                 \
-                ERROR,                                  \
-                DETAILS,                                \
-                __FILE__,                               \
-                __func__,                               \
+#define LAW_LOG_ERR(STREAM, ERROR, ACTION) \
+        law_log_err(            \
+                STREAM,         \
+                ERROR,          \
+                ACTION,         \
+                __FILE__,       \
+                __func__,       \
                 __LINE__)
 
 /** 
- * [datetime] [ip-address] pid action error_type \r\n
- *     Error Details: error_details \r\n
- *     Location: file func line \r\n
+ * ! thread_id ip-address user [datetime] error action 
+ * func() : file : line
+ * Connection Reset
  */
-sel_err_t law_log_net_err(
+sel_err_t law_log_net_err_ex(
         FILE *stream,
-        const int socket,
+        const char *error,
+        const char *ip_address,
+        const char *user,
         const char *action,
-        sel_err_t error,
         const char *details,
         const char *file,
         const char *func,
         const int line);
 
 /** 
- * [datetime] [ip-address] action error_type \r\n
- *     Error Details: error_details \r\n
- *     Location: file func line \r\n
+ * ! thread_id ip-address [datetime] error action 
+ * func() : file : line
+ * Connection Reset
  */
-#define LAW_LOG_NET_ERR(STREAM, SOCKET, ACTION, ERROR, DETAILS) \
-                law_log_net_err(        \
+sel_err_t law_log_net_err(
+        FILE *stream,
+        const sel_err_t error,
+        const int socket,
+        const char *user,
+        const char *action,
+        const char *file,
+        const char *func,
+        const int line);
+
+/** 
+ * ! thread_id ip-address [datetime] error action 
+ * func() : file : line
+ * Connection Reset
+ */
+#define LAW_LOG_NET_ERR(STREAM, ERROR, SOCKET, USER, ACTION) \
+        law_log_net_err(                \
                 STREAM,                 \
-                SOCKET,                 \
-                ACTION,                 \
                 ERROR,                  \
-                DETAILS,                \
+                SOCKET,                 \
+                USER,                   \
+                ACTION,                 \
                 __FILE__,               \
                 __func__,               \
                 __LINE__)
 
-/** Log HTTP access in CLF */
+/** 
+ * ip_address ident user [datetime] "req_line" status content_len
+ */
+sel_err_t law_log_access_ex(
+        FILE *access,
+        const char *ip_address,
+        const char *ident,
+        const char *user,
+        const char *req_line,
+        const int status,
+        const size_t content_len);
+
+/** 
+ * ip_address ident user [datetime] "req_line" status content_len
+ */
 sel_err_t law_log_access(
         FILE *access,
         const int socket,
-        const char *request_method,
-        struct law_uri *target_uri,
-        const char *http_version,
+        const char *ident,
+        const char *user,
+        const char *request_line,
         const int status_code,
         const size_t content_length);
 

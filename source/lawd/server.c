@@ -477,12 +477,11 @@ void law_ready_set_init(law_ready_set_t *set)
 }
 
 /** Add the task to the ready set. */
-bool law_ready_set_push(law_ready_set_t *set, law_task_t *task)
+void law_ready_set_push(law_ready_set_t *set, law_task_t *task)
 {
         SEL_ASSERT(set && task);
 
-        if(task->mark) 
-                return false;
+        if(task->mark) return;
 
         task->mark = 1;
 
@@ -490,8 +489,6 @@ bool law_ready_set_push(law_ready_set_t *set, law_task_t *task)
                 &law_task_lln_iface, 
                 set->list, 
                 task);
-
-        return true;
 }
 
 /** Remove the task from the ready set. */
@@ -1090,7 +1087,7 @@ static sel_err_t law_sync_wait(
                 return LAW_ERR_PUSH(err, "law_ectl");
         }
 
-        if((err = law_ewait(w, timeout, NULL, 0)) == LAW_ERR_TIMEOUT) {
+        if((err = law_ewait(w, timeout, NULL, 0)) == LAW_ERR_TIME) {
                 return LAW_ERR_PUSH(err, "law_ewait");
         } 
 
@@ -1114,7 +1111,7 @@ sel_err_t law_sync(
 
                 const law_time_t now = law_time_millis();
                 if(expiry <= now) {
-                        return LAW_ERR_TIMEOUT;
+                        return LAW_ERR_TIME;
                 } 
                 
                 timeout = expiry - now;
@@ -1198,6 +1195,8 @@ static bool law_worker_tick(law_worker_t *worker)
         law_timer_t *timer = worker->timer;
         law_ready_set_t *ready = &worker->ready;
         law_table_t *table = worker->table;
+        law_on_error_t on_error = server->cfg.on_error;
+        law_data_t data = server->cfg.data;
 
         law_time_t 
                 timeout = server->cfg.worker_timeout,
@@ -1207,7 +1206,9 @@ static bool law_worker_tick(law_worker_t *worker)
         bool reloop = true;
 
         if(law_timer_peek(timer, &min_expiry, NULL, NULL)) {
+
                 now = law_time_millis();
+
                 if(min_expiry <= now) {
                         timeout = 0;
                 } else {
@@ -1226,13 +1227,23 @@ static bool law_worker_tick(law_worker_t *worker)
 
         while(law_timer_peek(timer, &min_expiry, &id, &version)) {
 
+                (void)law_err_clear();
+
                 if(min_expiry > now) break;
 
                 SEL_TEST(law_timer_pop(timer, NULL, NULL, NULL));
 
                 law_task_t *task = law_table_lookup(table, id);
-                if(!task || task->version != version) 
+                if(!task) {
+                        LAW_ERR_PUSH(LAW_ERR_NOID, "law_table_lookup");
+                        (void)on_error(server, LAW_ERR_NOID, data);
                         continue;
+                }
+                if(task->version != version) {
+                        LAW_ERR_PUSH(LAW_ERR_VERS, "law_table_lookup");
+                        (void)on_error(server, LAW_ERR_VERS, data);
+                        continue;
+                }
 
                 (void)law_task_push_event(task, &event);
                 (void)law_ready_set_push(ready, task);
@@ -1292,9 +1303,7 @@ static bool law_worker_tick(law_worker_t *worker)
                 msg.data.u64 = 0;
         }
 
-        size_t max_size = law_table_max_size(table);
-
-        while(law_table_size(table) <= max_size) {
+        while(law_table_size(table) <= server->cfg.worker_tasks) {
 
                 law_task_t *task = NULL;
                 if(law_task_queue_pop(&worker->incoming, &task) != LAW_ERR_OK) 

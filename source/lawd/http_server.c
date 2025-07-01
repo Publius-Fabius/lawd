@@ -622,7 +622,7 @@ sel_err_t law_hts_entry_handler(law_worker_t *worker, law_hts_req_t *req)
         {
                 case LAW_ERR_OK:
                         break;
-                case LAW_ERR_TIMEOUT:
+                case LAW_ERR_TIME:
                         LAW_ERR_PUSH(err, "law_hts_read_reqline_sync");
                         hts->cfg.on_error(
                                 worker, 
@@ -665,7 +665,7 @@ sel_err_t law_hts_entry_handler(law_worker_t *worker, law_hts_req_t *req)
         {
                 case LAW_ERR_OK:
                         break;
-                case LAW_ERR_TIMEOUT:
+                case LAW_ERR_TIME:
                         LAW_ERR_PUSH(err, "law_hts_read_headers_sync");
                         hts->cfg.on_error(
                                 worker, 
@@ -770,7 +770,7 @@ void law_hts_entry_setup(law_worker_t *worker, law_hts_req_t *req)
         {
                 case LAW_ERR_OK:
                         break;
-                case LAW_ERR_TIMEOUT: 
+                case LAW_ERR_TIME: 
                         LAW_ERR_PUSH(err, "law_htc_ssl_shutdown_sync");
                         hts->cfg.on_error(
                                 worker, 

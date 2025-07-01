@@ -99,8 +99,10 @@ build/lawd/log.o: source/lawd/log.c include/lawd/log.h includes
 bin/test_log: tests/lawd/log.c \
 	build/lawd/log.o \
 	build/lawd/time.o \
-	lib/libselc.a
-	$(CC) $(CFLAGS) -o $@ $^
+	build/lawd/error.o \
+	lib/libselc.a \
+	lib/libpubmt.a
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
 
 # event.h 
 build/lawd/event.o: source/lawd/event.c include/lawd/event.h includes
